@@ -1,13 +1,7 @@
 import { ensurePortfolioSchema, getD1 } from "../../../../db";
+import { resolvePortfolioUserId, sameOriginMutation } from "../../../device-session";
 
 type Snapshot = { date: string; value: number; cost: number; returnRate: number };
-
-function userIdFor(request: Request) {
-  const userId = request.headers.get("oai-authenticated-user-id");
-  if (userId) return userId;
-  const hostname = new URL(request.url).hostname;
-  return hostname === "localhost" || hostname === "127.0.0.1" ? "local-preview-user" : null;
-}
 
 function validSnapshot(value: unknown): value is Snapshot {
   if (!value || typeof value !== "object") return false;
@@ -16,8 +10,9 @@ function validSnapshot(value: unknown): value is Snapshot {
 }
 
 export async function POST(request: Request) {
-  const userId = userIdFor(request);
-  if (!userId) return Response.json({ error:"请先登录后再同步" }, { status:401 });
+  if (!sameOriginMutation(request)) return Response.json({ error:"请求来源无效" }, { status:403 });
+  const userId = await resolvePortfolioUserId(request);
+  if (!userId) return Response.json({ error:"此设备尚未获得访问权限" }, { status:401 });
   try {
     const payload = await request.json() as { snapshots?: unknown };
     const snapshots = (Array.isArray(payload.snapshots) ? payload.snapshots : []).filter(validSnapshot).slice(-1825);

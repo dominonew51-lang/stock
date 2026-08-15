@@ -14,6 +14,12 @@ type Holding = {
 type Profile = { name: string; target: string; risk: string };
 type CloudPortfolioState = { holdings: Holding[]; profile: Profile; useDemoHoldings: boolean; longTermStart: string };
 type SyncStatus = "loading" | "syncing" | "synced" | "offline";
+type DeviceAccessState = {
+  status: "checking" | "authorized" | "locked" | "error";
+  source: "chatgpt" | "device" | "local" | null;
+  trusted: boolean;
+  message: string;
+};
 
 const assetBuckets: AssetBucket[] = ["美股指数", "红利", "美股", "现金/类现金"];
 const bucketClasses: Record<AssetBucket, string> = { "美股指数": "c-nasdaq", "红利": "c-dividend", "美股": "c-growth", "现金/类现金": "c-cash" };
@@ -104,16 +110,8 @@ function recalculateHolding(item: Holding, remoteQuotes: Record<string, MarketQu
   };
 }
 
-const initialHoldings: Holding[] = [
-  { symbol: "QQQ", name: "纳斯达克100ETF", category: "美股指数", market: "美股", price: 573.42, currency: "$", change: 0.48, value: 205860, cost: 176400, avgCost: 491.36, quantity: 50, holdingDays: 428, weight: 16.4, spark: [26,30,32,31,37,40,43,47,51,55] },
-  { symbol: "NVDA", name: "英伟达", category: "美股", market: "美股", price: 182.41, currency: "$", change: 2.84, value: 286420, cost: 193860, avgCost: 123.45, quantity: 219, holdingDays: 386, weight: 22.8, spark: [24,29,27,34,32,39,43,41,49,56] },
-  { symbol: "TSLA", name: "特斯拉", category: "美股", market: "美股", price: 341.67, currency: "$", change: -1.28, value: 176830, cost: 201200, avgCost: 388.76, quantity: 72, holdingDays: 214, weight: 14.1, spark: [49,45,48,44,42,39,40,36,34,30] },
-  { symbol: "AAPL", name: "苹果", category: "美股", market: "美股", price: 229.18, currency: "$", change: 0.86, value: 93870, cost: 80240, avgCost: 195.97, quantity: 57, holdingDays: 672, weight: 7.5, spark: [31,33,32,36,38,37,41,42,46,49] },
-  { symbol: "008163", name: "南方红利低波50ETF联接A", category: "红利", market: "基金", price: 1.482, currency: "¥", change: 0.63, value: 319680, cost: 286400, avgCost: 1.328, quantity: 215654, holdingDays: 548, weight: 25.5, spark: [28,29,31,30,34,35,37,39,40,44] },
-  { symbol: "600036", name: "招商银行", category: "红利", market: "A股", price: 42.36, currency: "¥", change: -0.42, value: 62460, cost: 58300, avgCost: 39.53, quantity: 1475, holdingDays: 291, weight: 5.0, spark: [44,42,43,39,41,38,36,37,34,33] },
-  { symbol: "510880", name: "红利ETF", category: "红利", market: "基金", price: 3.462, currency: "¥", change: 0.37, value: 74200, cost: 68600, avgCost: 3.201, quantity: 21433, holdingDays: 463, weight: 5.9, spark: [29,31,30,33,35,34,38,39,41,44] },
-  { symbol: "006962", name: "南方中债7-10年国开债A", category: "现金/类现金", market: "基金", price: 1.267, currency: "¥", change: 0.08, value: 118600, cost: 112400, avgCost: 1.201, quantity: 93607, holdingDays: 326, weight: 9.4, spark: [32,33,34,35,35,37,38,38,39,41] },
-];
+// 公开前端不内置任何持仓或个人金额；真实数据只从本机备份或授权后的云端读取。
+const initialHoldings: Holding[] = [];
 
 type TrendMode = "return" | "assets";
 type PortfolioSnapshot = { date: string; value: number; cost: number; returnRate: number };
@@ -235,7 +233,7 @@ export default function Home() {
   const [customHoldings, setCustomHoldings] = useState<Holding[]>([]);
   const [remoteQuotes, setRemoteQuotes] = useState<Record<string, MarketQuote>>({});
   const [quoteErrors, setQuoteErrors] = useState<Record<string, string>>({});
-  const [useDemoHoldings, setUseDemoHoldings] = useState(true);
+  const [useDemoHoldings, setUseDemoHoldings] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [amountsVisible, setAmountsVisible] = useState(true);
@@ -245,8 +243,10 @@ export default function Home() {
   const [cloudReady, setCloudReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("loading");
   const [backupMessage, setBackupMessage] = useState("");
+  const [deviceMessage, setDeviceMessage] = useState("");
+  const [deviceAccess, setDeviceAccess] = useState<DeviceAccessState>({ status:"checking", source:null, trusted:false, message:"正在确认设备权限…" });
   const [longTermStart, setLongTermStart] = useState("");
-  const [profile, setProfile] = useState<Profile>({ name: "Dominic", target: "12", risk: "均衡型" });
+  const [profile, setProfile] = useState<Profile>({ name: "", target: "12", risk: "均衡型" });
   const [assetForm, setAssetForm] = useState({ symbol: "", name: "", market: "" as Market | "", category: "美股" as AssetBucket, avgCost: "", quantity: "", holdingDays: "" });
   const [assetLookup, setAssetLookup] = useState<{ state: "idle" | "loading" | "success" | "error"; message: string }>({ state: "idle", message: "" });
 
@@ -259,6 +259,22 @@ export default function Home() {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/device-session", { cache:"no-store", credentials:"same-origin" })
+      .then(async (response) => {
+        const payload = await response.json() as { authorized?:boolean; source?:DeviceAccessState["source"]; trusted?:boolean; error?:string };
+        if (cancelled) return;
+        if (response.ok && payload.authorized) {
+          setDeviceAccess({ status:"authorized", source:payload.source ?? null, trusted:Boolean(payload.trusted), message:"" });
+        } else {
+          setDeviceAccess({ status:"locked", source:null, trusted:false, message:"此设备尚未获得访问权限" });
+        }
+      })
+      .catch(() => { if (!cancelled) setDeviceAccess({ status:"error", source:null, trusted:false, message:"暂时无法验证设备，请稍后重试" }); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -343,7 +359,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!historyReady) return;
+    if (!historyReady || deviceAccess.status !== "authorized") return;
     let cancelled = false;
     setSyncStatus("loading");
     fetch("/api/portfolio", { cache:"no-store" })
@@ -382,7 +398,7 @@ export default function Home() {
       })
       .catch(() => { if (!cancelled) setSyncStatus("offline"); });
     return () => { cancelled = true; };
-  }, [historyReady]);
+  }, [deviceAccess.status, historyReady]);
 
   useEffect(() => {
     if (!cloudReady) return;
@@ -542,6 +558,19 @@ export default function Home() {
     event.preventDefault(); window.localStorage.setItem("hengce-profile", JSON.stringify(profile)); setShowSettings(false);
   }
 
+  async function trustCurrentDevice() {
+    setDeviceMessage("正在授权此设备…");
+    try {
+      const response = await fetch("/api/device-session", { method:"POST", credentials:"same-origin" });
+      const payload = await response.json() as { trusted?:boolean; error?:string };
+      if (!response.ok || !payload.trusted) throw new Error(payload.error || "设备授权失败");
+      setDeviceAccess((current) => ({ ...current, status:"authorized", source:"device", trusted:true }));
+      setDeviceMessage("已信任此设备，未来 180 天可以直接打开。 ");
+    } catch (error) {
+      setDeviceMessage(error instanceof Error ? error.message : "设备授权失败，请重试");
+    }
+  }
+
   function exportBackup() {
     const backup = {
       version:1,
@@ -601,6 +630,19 @@ export default function Home() {
     } finally { event.target.value = ""; }
   }
 
+  if (deviceAccess.status !== "authorized") {
+    return <main className="device-access-shell">
+      <section className="device-access-card" aria-live="polite">
+        <div className="device-access-brand">M</div>
+        <p>MINIMALISM · PRIVATE PORTFOLIO</p>
+        <h1>{deviceAccess.status === "checking" ? "正在打开你的面板" : "需要授权此设备"}</h1>
+        <span>{deviceAccess.message}</span>
+        {deviceAccess.status !== "checking" && <a href="/signin-with-chatgpt?return_to=/">使用 ChatGPT 授权一次</a>}
+        <small>授权并信任后，未来 180 天点击桌面图标即可直接进入。</small>
+      </section>
+    </main>;
+  }
+
   return <main className="app-shell overview-only">
     <section className="workspace">
       <header className="topbar">
@@ -608,6 +650,7 @@ export default function Home() {
         <div className="top-actions">
           <label className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索股票 / 基金代码" aria-label="搜索股票或基金" /></label>
           <span className={`cloud-sync-status ${syncStatus}`}><i />{syncStatus === "loading" ? "连接云端" : syncStatus === "syncing" ? "同步中" : syncStatus === "synced" ? "已同步" : "离线"}</span>
+          {!deviceAccess.trusted && <button className="trust-device-btn" onClick={()=>void trustCurrentDevice()}>信任此设备</button>}
           <button className="icon-btn" aria-label="偏好设置" onClick={() => setShowSettings(true)}>⚙</button>
           <button className="primary-btn" onClick={() => setShowAdd(true)}><span className="add-asset-icon" aria-hidden="true" /><span className="add-asset-label">添加资产</span></button>
         </div>
@@ -647,7 +690,7 @@ export default function Home() {
     </section>
 
     {showAdd && <Modal title="添加一项持仓" eyebrow="PERSONAL PORTFOLIO" description="输入代码后自动显示全名和市场；持仓总成本由均价 × 数量计算。" onClose={() => setShowAdd(false)}><form className="modal-form" onSubmit={addHolding}><label className="wide">代码<input required value={assetForm.symbol} onChange={(event)=>setAssetForm({...assetForm,symbol:event.target.value,market:"",name:""})} placeholder="021000 / 600036 / AAPL" /><small>停止输入约半秒后自动查询</small></label><div className="resolved-identity wide"><span><small>持仓名称</small><strong>{assetLookup.state === "loading" ? "正在识别…" : assetForm.name || "输入代码后自动显示"}</strong></span><span><small>市场种类</small><strong className={assetForm.market ? `market-${assetForm.market}` : ""}>{assetForm.market || "待识别"}</strong></span></div><input type="hidden" required value={assetForm.name} readOnly /><label className="wide">资产分类（由你选择）<select value={assetForm.category} onChange={(event)=>setAssetForm({...assetForm,category:event.target.value as AssetBucket})}>{assetBuckets.map((item)=><option key={item}>{item}</option>)}</select></label><label>持仓均价（{assetForm.market === "美股" ? "USD" : "CNY"}）<input required type="number" min="0" step="any" value={assetForm.avgCost} onChange={(event)=>setAssetForm({...assetForm,avgCost:event.target.value})} /></label><label>持仓数<input required type="number" min="0.00000001" step="any" value={assetForm.quantity} onChange={(event)=>setAssetForm({...assetForm,quantity:event.target.value})} /></label><div className={`api-form-note wide ${assetLookup.state}`}>{assetLookup.state === "idle" ? "行情来源：东方财富、Nasdaq。" : assetLookup.message}</div><ModalActions onCancel={()=>setShowAdd(false)} label="保存到持仓" /></form></Modal>}
-    {showSettings && <Modal title="个人偏好" eyebrow="PERSONAL SETTINGS" description="偏好与持仓会安全同步到你的私有网页。" onClose={() => setShowSettings(false)}><form className="modal-form" onSubmit={saveProfile}><label className="wide">你的称呼<input value={profile.name} onChange={(event)=>setProfile({...profile,name:event.target.value})} /></label><label>年度目标（%）<input type="number" value={profile.target} onChange={(event)=>setProfile({...profile,target:event.target.value})} /></label><label>风险偏好<select value={profile.risk} onChange={(event)=>setProfile({...profile,risk:event.target.value})}><option>稳健型</option><option>均衡型</option><option>进取型</option></select></label><div className="backup-tools wide"><div><strong>数据备份与迁移</strong><small>首次从 localhost 迁移到正式网页时使用一次</small></div><button type="button" onClick={exportBackup}>导出备份</button><label className="import-backup-button">导入并同步<input type="file" accept="application/json,.json" onChange={(event)=>void importBackup(event)} /></label>{backupMessage && <p>{backupMessage}</p>}</div><ModalActions onCancel={()=>setShowSettings(false)} label="保存偏好" /></form></Modal>}
+    {showSettings && <Modal title="个人偏好" eyebrow="PERSONAL SETTINGS" description="偏好与持仓会安全同步到你的私人面板。" onClose={() => setShowSettings(false)}><form className="modal-form" onSubmit={saveProfile}><label className="wide">你的称呼<input value={profile.name} onChange={(event)=>setProfile({...profile,name:event.target.value})} /></label><label>年度目标（%）<input type="number" value={profile.target} onChange={(event)=>setProfile({...profile,target:event.target.value})} /></label><label>风险偏好<select value={profile.risk} onChange={(event)=>setProfile({...profile,risk:event.target.value})}><option>稳健型</option><option>均衡型</option><option>进取型</option></select></label><div className="device-trust-tools wide"><div><strong>快速打开</strong><small>{deviceAccess.trusted ? "此设备已受信任，180 天内无需再次登录" : "信任本设备后，未来 180 天可以直接打开"}</small></div>{!deviceAccess.trusted && <button type="button" onClick={()=>void trustCurrentDevice()}>信任此设备</button>}{deviceMessage && <p>{deviceMessage}</p>}</div><div className="backup-tools wide"><div><strong>数据备份与迁移</strong><small>首次从 localhost 迁移到正式网页时使用一次</small></div><button type="button" onClick={exportBackup}>导出备份</button><label className="import-backup-button">导入并同步<input type="file" accept="application/json,.json" onChange={(event)=>void importBackup(event)} /></label>{backupMessage && <p>{backupMessage}</p>}</div><ModalActions onCancel={()=>setShowSettings(false)} label="保存偏好" /></form></Modal>}
   </main>;
 }
 

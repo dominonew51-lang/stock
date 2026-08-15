@@ -1,13 +1,7 @@
 import { asc, eq, sql } from "drizzle-orm";
 import { ensurePortfolioSchema, getDb } from "../../../db";
 import { portfolioSnapshots, portfolioStates } from "../../../db/schema";
-
-function userIdFor(request: Request) {
-  const userId = request.headers.get("oai-authenticated-user-id");
-  if (userId) return userId;
-  const hostname = new URL(request.url).hostname;
-  return hostname === "localhost" || hostname === "127.0.0.1" ? "local-preview-user" : null;
-}
+import { resolvePortfolioUserId, sameOriginMutation } from "../../device-session";
 
 function errorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : "云端同步失败";
@@ -15,8 +9,8 @@ function errorResponse(error: unknown) {
 }
 
 export async function GET(request: Request) {
-  const userId = userIdFor(request);
-  if (!userId) return Response.json({ error: "请先登录后再同步" }, { status: 401 });
+  const userId = await resolvePortfolioUserId(request);
+  if (!userId) return Response.json({ error: "此设备尚未获得访问权限" }, { status: 401 });
   try {
     await ensurePortfolioSchema();
     const db = getDb();
@@ -31,8 +25,9 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const userId = userIdFor(request);
-  if (!userId) return Response.json({ error: "请先登录后再同步" }, { status: 401 });
+  if (!sameOriginMutation(request)) return Response.json({ error: "请求来源无效" }, { status: 403 });
+  const userId = await resolvePortfolioUserId(request);
+  if (!userId) return Response.json({ error: "此设备尚未获得访问权限" }, { status: 401 });
   try {
     const payload = await request.json() as { holdings?: unknown; profile?: unknown; useDemoHoldings?: unknown; longTermStart?: unknown };
     const state = {

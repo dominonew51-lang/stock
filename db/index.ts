@@ -34,5 +34,19 @@ export async function ensurePortfolioSchema() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (user_id, snapshot_date)
     )`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS portfolio_owners (
+      id INTEGER PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL
+    )`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS trusted_devices (
+      token_hash TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL
+    )`),
+    d1.prepare(`CREATE INDEX IF NOT EXISTS idx_trusted_devices_expires_at
+      ON trusted_devices(expires_at)`),
   ]);
 }

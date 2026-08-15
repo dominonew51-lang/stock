@@ -1,0 +1,1 @@
+CREATE INDEX `idx_trusted_devices_expires_at` ON `trusted_devices` (`expires_at`);

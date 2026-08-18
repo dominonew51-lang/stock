@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "minimalism-portfolio",
+  "main": "worker-entry.mjs",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "triggers": {
+    "crons": ["59 15 * * *"]
+  },
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "dist/client"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "minimalism-portfolio-db",
+      "database_id": "feca7da2-8f9a-40fa-9c0c-2904cefb6826",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

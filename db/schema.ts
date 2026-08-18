@@ -29,3 +29,20 @@ export const trustedDevices = sqliteTable("trusted_devices", {
   expiresAt: integer("expires_at").notNull(),
   lastSeenAt: integer("last_seen_at").notNull(),
 }, (table) => [index("idx_trusted_devices_expires_at").on(table.expiresAt)]);
+
+export const appAuth = sqliteTable("app_auth", {
+  id: integer("id").primaryKey(),
+  passwordSalt: text("password_salt").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  passwordIterations: integer("password_iterations").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const loginAttempts = sqliteTable("login_attempts", {
+  clientKey: text("client_key").primaryKey(),
+  failedCount: integer("failed_count").notNull(),
+  windowStartedAt: integer("window_started_at").notNull(),
+  blockedUntil: integer("blocked_until").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [index("idx_login_attempts_updated_at").on(table.updatedAt)]);

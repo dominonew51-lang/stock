@@ -43,7 +43,7 @@ function randomToken() {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-async function ownerUserId() {
+export async function ownerUserId() {
   const row = await getD1().prepare("SELECT user_id FROM portfolio_owners WHERE id = 1").first<{ user_id: string }>();
   return row?.user_id ?? null;
 }
@@ -106,6 +106,13 @@ export async function enrollTrustedDevice(request: Request) {
   const ownerId = await ownerUserId();
   if (ownerId !== headerUserId) throw new Error("此账号不是该面板的所有者");
 
+  return createTrustedDeviceForUser(headerUserId);
+}
+
+export async function createTrustedDeviceForUser(userId: string) {
+  await ensurePortfolioSchema();
+  const d1 = getD1();
+  const now = Math.floor(Date.now() / 1000);
   await d1.prepare("DELETE FROM trusted_devices WHERE expires_at <= ?").bind(now).run();
   const token = randomToken();
   const tokenHash = await hashToken(token);
@@ -113,7 +120,7 @@ export async function enrollTrustedDevice(request: Request) {
   await d1.prepare(`INSERT INTO trusted_devices
     (token_hash, user_id, created_at, expires_at, last_seen_at)
     VALUES (?, ?, ?, ?, ?)`
-  ).bind(tokenHash, headerUserId, now, expiresAt, now).run();
+  ).bind(tokenHash, userId, now, expiresAt, now).run();
 
   const cookie = `${DEVICE_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${TRUST_SECONDS}; HttpOnly; Secure; SameSite=Lax`;
   return { ok: true, cookie, expiresAt: expiresAt * 1000 };

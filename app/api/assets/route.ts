@@ -1,5 +1,5 @@
 type Market = "美股" | "A股" | "基金";
-type AssetBucket = "美股指数" | "红利" | "美股" | "现金/类现金";
+type AssetBucket = "美股指数" | "红利" | "美股" | "A股" | "加密货币" | "现金/类现金";
 
 type QuoteResult = {
   symbol: string;
@@ -22,13 +22,13 @@ function suggestCategory(name: string): AssetBucket | undefined {
   return undefined;
 }
 
-async function fetchJson(url: string, timeoutMs = 8000) {
+async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { headers: requestHeaders, signal: controller.signal });
     if (!response.ok) throw new Error(`上游接口返回 ${response.status}`);
-    return await response.json();
+    return await response.json() as T;
   } finally {
     clearTimeout(timer);
   }
@@ -54,12 +54,12 @@ function listedExchange(symbol: string) {
 
 async function fetchEastmoneyListedQuote(symbol: string, exchange: string): Promise<QuoteResult> {
   const quoteUrl = `https://push2.eastmoney.com/api/qt/stock/get?fltt=2&secid=${exchange}.${symbol}&fields=f57,f58,f43,f170`;
-  const quote = await fetchJson(quoteUrl);
+  const quote = await fetchJson<{ data?: { f43?: unknown; f58?: unknown; f170?: unknown } }>(quoteUrl);
   const data = quote?.data;
   const price = Number(data?.f43);
   if (!data || !Number.isFinite(price) || price <= 0) throw new Error("东方财富场内行情暂不可用");
   const name = String(data.f58 || symbol);
-  return { symbol, name, market: "A股", price, currency: "¥", change: Number(data.f170 || 0), asOf: new Date().toISOString(), provider: "东方财富", suggestedCategory: suggestCategory(name) };
+  return { symbol, name, market: "A股", price, currency: "¥", change: Number(data.f170 || 0), asOf: new Date().toISOString(), provider: "东方财富", suggestedCategory: suggestCategory(name) ?? "A股" };
 }
 
 async function fetchTencentListedQuote(symbol: string, exchange: string): Promise<QuoteResult> {
@@ -73,7 +73,7 @@ async function fetchTencentListedQuote(symbol: string, exchange: string): Promis
   const name = String(fields[1] || symbol);
   const previousClose = Number(fields[4]);
   const change = Number(fields[32]) || (previousClose > 0 ? ((price - previousClose) / previousClose) * 100 : 0);
-  return { symbol, name, market: "A股", price, currency: "¥", change, asOf: String(fields[30] || new Date().toISOString()), provider: "腾讯行情", suggestedCategory: suggestCategory(name) };
+  return { symbol, name, market: "A股", price, currency: "¥", change, asOf: String(fields[30] || new Date().toISOString()), provider: "腾讯行情", suggestedCategory: suggestCategory(name) ?? "A股" };
 }
 
 async function resolveChineseAsset(symbol: string): Promise<QuoteResult> {
@@ -87,8 +87,8 @@ async function resolveChineseAsset(symbol: string): Promise<QuoteResult> {
   }
 
   const searchUrl = `https://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx?m=1&key=${encodeURIComponent(symbol)}`;
-  const search = await fetchJson(searchUrl);
-  const item = search?.Datas?.find((candidate: { CODE?: string }) => candidate.CODE === symbol);
+  const search = await fetchJson<{ Datas?: Array<{ CODE?: string; NAME?: unknown; FundBaseInfo?: { DWJZ?: unknown; SHORTNAME?: unknown; FSRQ?: unknown } }> }>(searchUrl);
+  const item = search?.Datas?.find((candidate) => candidate.CODE === symbol);
   if (!item) throw new Error("未找到该基金或 A 股代码");
 
   if (item.FundBaseInfo) {
@@ -106,7 +106,7 @@ async function resolveUsAsset(symbol: string): Promise<QuoteResult> {
   for (const assetClass of ["stocks", "etf"] as const) {
     try {
       const url = `https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/info?assetclass=${assetClass}`;
-      const response = await fetchJson(url);
+      const response = await fetchJson<{ data?: { companyName?: unknown; primaryData?: { lastSalePrice?: unknown; percentageChange?: unknown; lastTradeTimestamp?: unknown } } }>(url);
       const data = response?.data;
       const rawPrice = data?.primaryData?.lastSalePrice;
       const price = Number(String(rawPrice || "").replace(/[^0-9.-]/g, ""));

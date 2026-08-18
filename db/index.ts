@@ -48,5 +48,22 @@ export async function ensurePortfolioSchema() {
     )`),
     d1.prepare(`CREATE INDEX IF NOT EXISTS idx_trusted_devices_expires_at
       ON trusted_devices(expires_at)`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS app_auth (
+      id INTEGER PRIMARY KEY NOT NULL,
+      password_salt TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      password_iterations INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS login_attempts (
+      client_key TEXT PRIMARY KEY NOT NULL,
+      failed_count INTEGER NOT NULL,
+      window_started_at INTEGER NOT NULL,
+      blocked_until INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`),
+    d1.prepare(`CREATE INDEX IF NOT EXISTS idx_login_attempts_updated_at
+      ON login_attempts(updated_at)`),
   ]);
 }

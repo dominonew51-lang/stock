@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CnMarketItem } from "./market-data/cn-market";
 
 type Market = "美股" | "A股" | "基金";
-type AssetBucket = "美股指数" | "红利" | "美股" | "现金/类现金";
+type AssetBucket = "美股指数" | "红利" | "美股" | "A股" | "加密货币" | "现金/类现金";
 type MarketQuote = { symbol: string; name: string; market: Market; price: number; currency: "$" | "¥"; change: number; asOf: string; provider: string; suggestedCategory?: AssetBucket };
+type CnMarketResponse = { marketState: "open" | "lunch" | "closed" | "holiday"; timezone: string; updatedAt: string; items: Record<string, CnMarketItem>; errors: Record<string, string> };
 type Holding = {
   symbol: string; name: string; market: Market; price: number; currency: "$" | "¥";
   change: number; value: number; cost: number; avgCost: number; quantity: number;
@@ -18,12 +20,14 @@ type DeviceAccessState = {
   status: "checking" | "authorized" | "locked" | "error";
   source: "chatgpt" | "device" | "local" | null;
   trusted: boolean;
+  setupRequired: boolean;
   message: string;
 };
 
-const assetBuckets: AssetBucket[] = ["美股指数", "红利", "美股", "现金/类现金"];
-const bucketClasses: Record<AssetBucket, string> = { "美股指数": "c-nasdaq", "红利": "c-dividend", "美股": "c-growth", "现金/类现金": "c-cash" };
-const bucketColors: Record<AssetBucket, string> = { "美股指数":"#635BFF", "红利":"#00BFA6", "美股":"#00AEEF", "现金/类现金":"#FFB15C" };
+const assetBuckets: AssetBucket[] = ["美股指数", "红利", "美股", "A股", "加密货币", "现金/类现金"];
+const todayMarketCodes = ["515450", "000922", "000688"];
+const bucketClasses: Record<AssetBucket, string> = { "美股指数": "c-nasdaq", "红利": "c-dividend", "美股": "c-growth", "A股":"c-ashare", "加密货币":"c-crypto", "现金/类现金": "c-cash" };
+const bucketColors: Record<AssetBucket, string> = { "美股指数":"#635BFF", "红利":"#00BFA6", "美股":"#00AEEF", "A股":"#F05D5E", "加密货币":"#8B5CF6", "现金/类现金":"#FFB15C" };
 
 function shortFundName(name: string) {
   const clean = name.replace(/[（）()]/g, " ").replace(/\s+/g, "").trim();
@@ -64,11 +68,12 @@ function fallbackCategory(item: Partial<Holding>): AssetBucket {
   if (legacy === "红利类资产") return "红利";
   if (legacy === "美股高成长个股") return "美股";
   if (legacy === "债券" || legacy === "现金") return "现金/类现金";
-  if (legacy === "加密货币") return "现金/类现金";
+  if (legacy === "加密货币") return "加密货币";
   if (assetBuckets.includes(legacy as AssetBucket)) return legacy as AssetBucket;
   if (item.symbol === "QQQ") return "美股指数";
   if (item.symbol === "006962") return "现金/类现金";
   if (item.market === "美股") return "美股";
+  if (item.market === "A股") return "A股";
   return "红利";
 }
 
@@ -113,9 +118,9 @@ function recalculateHolding(item: Holding, remoteQuotes: Record<string, MarketQu
 // 公开前端不内置任何持仓或个人金额；真实数据只从本机备份或授权后的云端读取。
 const initialHoldings: Holding[] = [];
 
-type TrendMode = "return" | "assets";
+type TrendMode = "return" | "profit" | "assets";
 type PortfolioSnapshot = { date: string; value: number; cost: number; returnRate: number };
-type PortfolioTrend = { dates: string[]; returns: number[]; costs: number[]; values: number[] };
+type PortfolioTrend = { dates: string[]; returns: number[]; profits: number[]; costs: number[]; values: number[] };
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -152,6 +157,7 @@ function buildPortfolioTrend(history: PortfolioSnapshot[], range: string, curren
     values: records.map((item) => item.value),
     costs: records.map((item) => item.cost),
     returns: records.map((item) => item.returnRate),
+    profits: records.map((item) => item.value - item.cost),
   };
 }
 
@@ -187,7 +193,7 @@ function trendAxisLabel(value: number, mode: TrendMode) {
 }
 
 function PerformanceChart({ compact = false, mode = "return", trend, range = "1年" }: { compact?: boolean; mode?: TrendMode; trend: PortfolioTrend; range?: string }) {
-  const primary = mode === "return" ? trend.returns : trend.values;
+  const primary = mode === "return" ? trend.returns : mode === "profit" ? trend.profits : trend.values;
   const secondary = mode === "assets" ? trend.costs : undefined;
   const allValues = (secondary ? [...primary, ...secondary] : primary).filter(Number.isFinite);
   const rawMin = allValues.length ? Math.min(...allValues) : 0;
@@ -213,7 +219,7 @@ function PerformanceChart({ compact = false, mode = "return", trend, range = "1�
   const lastSecondaryPoint = secondaryPoints[secondaryPoints.length - 1];
   return <div className={`performance-chart ${compact ? "compact" : ""}`}>
     <div className="chart-y">{labels.map((label,index)=><span key={`${label}-${index}`}>{label}</span>)}</div>
-    <svg viewBox="0 0 760 250" preserveAspectRatio="none" role="img" aria-label={`${mode === "return" ? "收益率" : "成本投入与总市值"}走势`}>
+    <svg viewBox="0 0 760 250" preserveAspectRatio="none" role="img" aria-label={`${mode === "return" ? "收益率" : mode === "profit" ? "绝对收益" : "成本投入与总市值"}走势`}>
       <defs><linearGradient id={`portfolioArea-${mode}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#dce8d0" stopOpacity=".48"/><stop offset="1" stopColor="#dce8d0" stopOpacity="0"/></linearGradient></defs>
       {primary.length > 1 && <path d={`${primaryPath} L760 250 L0 250 Z`} fill={`url(#portfolioArea-${mode})`} />}
       <path d={primaryPath} fill="none" stroke="#050505" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
@@ -232,6 +238,8 @@ export default function Home() {
   const [bucketFilter, setBucketFilter] = useState<"全部" | AssetBucket>("全部");
   const [customHoldings, setCustomHoldings] = useState<Holding[]>([]);
   const [remoteQuotes, setRemoteQuotes] = useState<Record<string, MarketQuote>>({});
+  const [cnMarket, setCnMarket] = useState<CnMarketResponse | null>(null);
+  const [cnMarketLoading, setCnMarketLoading] = useState(false);
   const [quoteErrors, setQuoteErrors] = useState<Record<string, string>>({});
   const [useDemoHoldings, setUseDemoHoldings] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -244,7 +252,12 @@ export default function Home() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("loading");
   const [backupMessage, setBackupMessage] = useState("");
   const [deviceMessage, setDeviceMessage] = useState("");
-  const [deviceAccess, setDeviceAccess] = useState<DeviceAccessState>({ status:"checking", source:null, trusted:false, message:"正在确认设备权限…" });
+  const [deviceAccess, setDeviceAccess] = useState<DeviceAccessState>({ status:"checking", source:null, trusted:false, setupRequired:false, message:"正在确认设备权限…" });
+  const [setupToken, setSetupToken] = useState("");
+  const [resetRequested, setResetRequested] = useState(false);
+  const [accessPassword, setAccessPassword] = useState("");
+  const [accessPasswordConfirm, setAccessPasswordConfirm] = useState("");
+  const [accessBusy, setAccessBusy] = useState(false);
   const [longTermStart, setLongTermStart] = useState("");
   const [profile, setProfile] = useState<Profile>({ name: "", target: "12", risk: "均衡型" });
   const [assetForm, setAssetForm] = useState({ symbol: "", name: "", market: "" as Market | "", category: "美股" as AssetBucket, avgCost: "", quantity: "", holdingDays: "" });
@@ -263,17 +276,27 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
+    const url = new URL(window.location.href);
+    const oneTimeSetupToken = url.searchParams.get("setup") ?? "";
+    const resetMode = url.searchParams.get("reset") === "1";
+    setResetRequested(resetMode);
+    if (oneTimeSetupToken) {
+      setSetupToken(oneTimeSetupToken);
+      url.searchParams.delete("setup");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
     fetch("/api/device-session", { cache:"no-store", credentials:"same-origin" })
       .then(async (response) => {
-        const payload = await response.json() as { authorized?:boolean; source?:DeviceAccessState["source"]; trusted?:boolean; error?:string };
+        const payload = await response.json() as { authorized?:boolean; source?:DeviceAccessState["source"]; trusted?:boolean; setupRequired?:boolean; error?:string };
         if (cancelled) return;
         if (response.ok && payload.authorized) {
-          setDeviceAccess({ status:"authorized", source:payload.source ?? null, trusted:Boolean(payload.trusted), message:"" });
+          setDeviceAccess({ status:"authorized", source:payload.source ?? null, trusted:Boolean(payload.trusted), setupRequired:false, message:"" });
         } else {
-          setDeviceAccess({ status:"locked", source:null, trusted:false, message:"此设备尚未获得访问权限" });
+          const setupRequired = Boolean(payload.setupRequired);
+          setDeviceAccess({ status:"locked", source:null, trusted:false, setupRequired, message:resetMode ? "请设置新的访问密码" : setupRequired ? (oneTimeSetupToken ? "请设置你的访问密码" : "请使用一次性设置链接完成初始化") : "输入密码即可打开你的资产面板" });
         }
       })
-      .catch(() => { if (!cancelled) setDeviceAccess({ status:"error", source:null, trusted:false, message:"暂时无法验证设备，请稍后重试" }); });
+      .catch(() => { if (!cancelled) setDeviceAccess({ status:"error", source:null, trusted:false, setupRequired:false, message:"暂时无法验证设备，请稍后重试" }); });
     return () => { cancelled = true; };
   }, []);
 
@@ -285,7 +308,8 @@ export default function Home() {
       controller = new AbortController();
       fetch(`/api/assets?codes=${encodeURIComponent(quoteCodes)}`, { signal: controller.signal, cache: "no-store" })
         .then((response) => response.json())
-        .then((payload: { quotes?: Record<string, MarketQuote>; errors?: Record<string, string> }) => {
+        .then((rawPayload) => {
+          const payload = rawPayload as { quotes?: Record<string, MarketQuote>; errors?: Record<string, string> };
           if (payload.quotes) setRemoteQuotes((current) => ({ ...current, ...payload.quotes }));
           setQuoteErrors(payload.errors ?? {});
         })
@@ -295,6 +319,22 @@ export default function Home() {
     const refreshTimer = window.setInterval(refreshQuotes, 20000);
     return () => { window.clearInterval(refreshTimer); controller?.abort(); };
   }, [quoteCodes]);
+
+  useEffect(() => {
+    let controller: AbortController | null = null;
+    let timer: number | undefined;
+    const refresh = () => {
+      controller?.abort(); controller = new AbortController(); setCnMarketLoading(true);
+      const url = `/api/cn-market?codes=${encodeURIComponent(todayMarketCodes.join(","))}`;
+      fetch(url, { signal: controller.signal, cache: "no-store" }).then((response) => response.json()).then((payload) => setCnMarket(payload as CnMarketResponse)).catch(() => undefined).finally(() => setCnMarketLoading(false));
+    };
+    refresh();
+    const schedule = () => { timer = window.setTimeout(() => { refresh(); schedule(); }, 20000); };
+    schedule();
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { if (timer) window.clearTimeout(timer); controller?.abort(); document.removeEventListener("visibilitychange", onVisible); };
+  }, []);
 
   async function lookupAssetCode(rawSymbol: string) {
     const entered = rawSymbol.trim().toUpperCase();
@@ -322,7 +362,7 @@ export default function Home() {
     const quote = await lookupAssetCode(assetForm.symbol);
     if (!quote) { setAssetLookup({ state: "error", message: quoteErrors[assetForm.symbol.trim().toUpperCase()] || "未能识别该代码，请检查后重试。" }); return; }
     const displayName = localizedAssetName(quote.symbol, quote.name, quote.market);
-    setAssetForm((current) => ({ ...current, symbol: quote.symbol, name: displayName, market: quote.market }));
+    setAssetForm((current) => ({ ...current, symbol: quote.symbol, name: displayName, market: quote.market, category:quote.suggestedCategory ?? (quote.market === "A股" ? "A股" : current.category) }));
     setAssetLookup({ state: "success", message: quote.price > 0 ? `${displayName} · ${quote.provider} · 最新价 ${quote.currency}${quote.price}` : `${displayName} 已识别 · 当前行情源暂不可用，可先保存持仓` });
   }
 
@@ -341,9 +381,7 @@ export default function Home() {
       const savedLongTermStart = window.localStorage.getItem("hengce-long-term-start");
       if (assets) {
         const stored = JSON.parse(assets) as Holding[];
-        const cleaned = stored.filter((item) => (item.market as string) !== "加密货币" && (item.category as string) !== "加密货币" && !["BTC","ETH","SOL","USDT","USDC","BNB","XRP","DOGE"].includes(item.symbol.toUpperCase()));
-        setCustomHoldings(cleaned);
-        if (cleaned.length !== stored.length) window.localStorage.setItem("hengce-custom-holdings", JSON.stringify(cleaned));
+        setCustomHoldings(stored);
       }
       if (holdingMode === "false") setUseDemoHoldings(false);
       if (settings) setProfile(JSON.parse(settings) as typeof profile);
@@ -423,7 +461,6 @@ export default function Home() {
     const merged = new Map<string, Holding>();
     if (useDemoHoldings) initialHoldings.forEach((item) => merged.set(item.symbol, recalculateHolding(item, remoteQuotes)));
     customHoldings.forEach((item) => {
-      if ((item.market as string) === "加密货币" || (item.category as string) === "加密货币") return;
       if (item.sourceSymbol && item.sourceSymbol !== item.symbol) merged.delete(item.sourceSymbol);
       const legacyFx = item.market === "美股" ? 7.18 : 1;
       const inferredAvgCost = item.avgCost ?? (item.cost && item.quantity ? item.cost / item.quantity / legacyFx : item.price);
@@ -502,7 +539,8 @@ export default function Home() {
   const todayStart = new Date(`${localDateKey()}T00:00:00`);
   const longTermDays = Math.max(1, Math.floor((todayStart.getTime() - longTermStartDate.getTime()) / 86400000) + 1);
   const trendView = {
-    return: { description:"按每日资产快照计算", primary:"组合收益率", primaryValue:`${latestReturn >= 0 ? "+" : ""}${latestReturn.toFixed(2)}%`, secondary:"", secondaryValue:"", note:`每日 23:59 保存 · ${portfolioTrend.dates.length} 个日期` },
+    return: { description:"按每日资产快照计算", primary:"组合收益率", primaryValue:`${latestReturn >= 0 ? "+" : ""}${latestReturn.toFixed(2)}%`, secondary:"", secondaryValue:"", note:`云端每日 23:59 自动保存 · ${portfolioTrend.dates.length} 个日期` },
+    profit: { description:"每日总市值减去成本投入", primary:"绝对收益", primaryValue:`${profit >= 0 ? "+" : ""}¥${profit.toLocaleString("zh-CN")}`, secondary:"", secondaryValue:"", note:`当前累计盈亏 ${profit >= 0 ? "+" : ""}¥${profit.toLocaleString("zh-CN")}` },
     assets: { description:"总市值与成本投入同图对照", primary:"总市值", primaryValue:`¥${totalValue.toLocaleString("zh-CN")}`, secondary:"成本投入", secondaryValue:`¥${totalCost.toLocaleString("zh-CN")}`, note:`浮动盈亏 ${profit >= 0 ? "+" : ""}¥${profit.toLocaleString("zh-CN")}` },
   }[trendMode];
   const allocationData = assetBuckets.map((category) => {
@@ -564,10 +602,47 @@ export default function Home() {
       const response = await fetch("/api/device-session", { method:"POST", credentials:"same-origin" });
       const payload = await response.json() as { trusted?:boolean; error?:string };
       if (!response.ok || !payload.trusted) throw new Error(payload.error || "设备授权失败");
-      setDeviceAccess((current) => ({ ...current, status:"authorized", source:"device", trusted:true }));
+      setDeviceAccess((current) => ({ ...current, status:"authorized", source:"device", trusted:true, setupRequired:false }));
       setDeviceMessage("已信任此设备，未来 180 天可以直接打开。 ");
     } catch (error) {
       setDeviceMessage(error instanceof Error ? error.message : "设备授权失败，请重试");
+    }
+  }
+
+  async function submitDeviceAccess(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const settingUp = (deviceAccess.setupRequired || resetRequested) && Boolean(setupToken);
+    if (!accessPassword) return;
+    if (settingUp && accessPassword.length < 10) {
+      setDeviceAccess((current) => ({ ...current, message:"密码至少需要 10 个字符" }));
+      return;
+    }
+    if (settingUp && accessPassword !== accessPasswordConfirm) {
+      setDeviceAccess((current) => ({ ...current, message:"两次输入的密码不一致" }));
+      return;
+    }
+    setAccessBusy(true);
+    setDeviceAccess((current) => ({ ...current, message:resetRequested ? "正在重置密码…" : settingUp ? "正在安全设置…" : "正在验证…" }));
+    try {
+      const response = await fetch(resetRequested ? "/api/device-session/reset" : settingUp ? "/api/device-session/setup" : "/api/device-session/login", {
+        method:"POST",
+        credentials:"same-origin",
+        headers:{ "content-type":"application/json" },
+        body:JSON.stringify(settingUp ? { setupToken, password:accessPassword } : { password:accessPassword }),
+      });
+      const payload = await response.json() as { trusted?:boolean; error?:string };
+      if (!response.ok || !payload.trusted) throw new Error(payload.error || "验证失败");
+      setSetupToken("");
+      setAccessPassword("");
+      setAccessPasswordConfirm("");
+      setDeviceAccess({ status:"authorized", source:"device", trusted:true, setupRequired:false, message:"" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "验证失败，请重试";
+      const passwordAlreadySet = /已经设置/.test(message);
+      setDeviceAccess((current) => ({ ...current, status:"locked", setupRequired:passwordAlreadySet ? false : current.setupRequired, message }));
+      if (passwordAlreadySet) setSetupToken("");
+    } finally {
+      setAccessBusy(false);
     }
   }
 
@@ -631,14 +706,20 @@ export default function Home() {
   }
 
   if (deviceAccess.status !== "authorized") {
+    const settingUp = (deviceAccess.setupRequired || resetRequested) && Boolean(setupToken);
     return <main className="device-access-shell">
       <section className="device-access-card" aria-live="polite">
         <div className="device-access-brand">M</div>
         <p>MINIMALISM · PRIVATE PORTFOLIO</p>
-        <h1>{deviceAccess.status === "checking" ? "正在打开你的面板" : "需要授权此设备"}</h1>
+        <h1>{deviceAccess.status === "checking" ? "正在打开你的面板" : resetRequested ? "重置访问密码" : settingUp ? "设置访问密码" : "打开资产面板"}</h1>
         <span>{deviceAccess.message}</span>
-        {deviceAccess.status !== "checking" && <a href="/signin-with-chatgpt?return_to=/">使用 ChatGPT 授权一次</a>}
-        <small>授权并信任后，未来 180 天点击桌面图标即可直接进入。</small>
+        {deviceAccess.status !== "checking" && (!deviceAccess.setupRequired || settingUp || resetRequested) && <form className="device-access-form" onSubmit={(event)=>void submitDeviceAccess(event)}>
+          <label><span>{settingUp ? "创建密码" : "访问密码"}</span><input type="password" autoComplete={settingUp ? "new-password" : "current-password"} minLength={settingUp ? 10 : undefined} value={accessPassword} onChange={(event)=>setAccessPassword(event.target.value)} placeholder={settingUp ? "至少 10 个字符" : "输入你的密码"} /></label>
+          {settingUp && <label><span>确认密码</span><input type="password" autoComplete="new-password" minLength={10} value={accessPasswordConfirm} onChange={(event)=>setAccessPasswordConfirm(event.target.value)} placeholder="再次输入密码" /></label>}
+          <button type="submit" disabled={accessBusy || !accessPassword}>{accessBusy ? "请稍候…" : resetRequested ? "重置并进入" : settingUp ? "设置并进入" : "进入面板"}</button>
+        </form>}
+        {deviceAccess.setupRequired && !setupToken && deviceAccess.status !== "checking" && <div className="device-setup-needed">首次使用需要打开我稍后发给你的一次性设置链接。</div>}
+        <small>成功后会信任当前设备 180 天，平时点击网页图标即可直接进入。</small>
       </section>
     </main>;
   }
@@ -651,6 +732,7 @@ export default function Home() {
           <label className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索股票 / 基金代码" aria-label="搜索股票或基金" /></label>
           <span className={`cloud-sync-status ${syncStatus}`}><i />{syncStatus === "loading" ? "连接云端" : syncStatus === "syncing" ? "同步中" : syncStatus === "synced" ? "已同步" : "离线"}</span>
           {!deviceAccess.trusted && <button className="trust-device-btn" onClick={()=>void trustCurrentDevice()}>信任此设备</button>}
+          <button className="migration-btn" onClick={() => setShowSettings(true)}><span aria-hidden="true">⇄</span><span className="migration-label">数据迁移</span></button>
           <button className="icon-btn" aria-label="偏好设置" onClick={() => setShowSettings(true)}>⚙</button>
           <button className="primary-btn" onClick={() => setShowAdd(true)}><span className="add-asset-icon" aria-hidden="true" /><span className="add-asset-label">添加资产</span></button>
         </div>
@@ -672,16 +754,18 @@ export default function Home() {
           </div>
         </section>
 
+        <CnMarketPanel data={cnMarket} loading={cnMarketLoading} />
+
         <section className="dashboard-grid">
           <article className="panel performance-panel">
-            <div className="panel-head trend-head"><div><h2>资产走势</h2><p>{trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['assets','成本投入 & 总市值']] as [TrendMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div><div className="segmented">{["1月","3月","6月","1年","全部"].map((item) => <button key={item} className={range === item ? "selected" : ""} onClick={() => setRange(item)}>{item}</button>)}</div></div></div>
-            <div className="chart-legend"><span><i className="legend-value" />{trendView.primary} <b className={trendMode === "return" ? "up" : ""}>{trendView.primaryValue}</b></span>{trendView.secondary && <span><i className="legend-cost" />{trendView.secondary} <b>{trendView.secondaryValue}</b></span>}<span className="chart-note">{trendView.note}</span></div>
+            <div className="panel-head trend-head"><div><h2>资产走势</h2><p>{trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['profit','收益'],['assets','市值和成本']] as [TrendMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div><div className="segmented">{["1月","3月","6月","1年","全部"].map((item) => <button key={item} className={range === item ? "selected" : ""} onClick={() => setRange(item)}>{item}</button>)}</div></div></div>
+            <div className="chart-legend"><span><i className="legend-value" />{trendView.primary} <b className={trendMode !== "assets" ? (profit >= 0 ? "up" : "down") : ""}>{trendView.primaryValue}</b></span>{trendView.secondary && <span><i className="legend-cost" />{trendView.secondary} <b>{trendView.secondaryValue}</b></span>}<span className="chart-note">{trendView.note}</span></div>
             <PerformanceChart mode={trendMode} trend={portfolioTrend} range={range} />
           </article>
           <article className="panel allocation-panel">
             <div className="panel-head"><div><h2>资产配置</h2><p>按当前持仓市值实时统计</p></div></div>
             <div className="allocation-chart-layout">
-              <div className="allocation-pie" style={{background:totalValue > 0 ? `conic-gradient(${allocationGradient})` : "#e7e6e3"}} role="img" aria-label="四类资产分类占比饼图"><div><span>总市值</span><strong>¥{totalValue >= 10000 ? `${(totalValue/10000).toFixed(1)}万` : totalValue.toLocaleString("zh-CN")}</strong></div><div className="allocation-pie-labels" aria-hidden="true">{allocationLabels.map((item)=><span key={item.category} style={{left:`${item.left}%`,top:`${item.top}%`}}><b>{item.category}</b>{item.percent.toFixed(0)}%</span>)}</div></div>
+              <div className="allocation-pie" style={{background:totalValue > 0 ? `conic-gradient(${allocationGradient})` : "#e7e6e3"}} role="img" aria-label="六类资产分类占比饼图"><div><span>总市值</span><strong>¥{totalValue >= 10000 ? `${(totalValue/10000).toFixed(1)}万` : totalValue.toLocaleString("zh-CN")}</strong></div><div className="allocation-pie-labels" aria-hidden="true">{allocationLabels.map((item)=><span key={item.category} style={{left:`${item.left}%`,top:`${item.top}%`}}><b>{item.category}</b>{item.percent.toFixed(0)}%</span>)}</div></div>
               <div className="allocation-legend-list">{allocationData.map((item)=><div key={item.category}><span><i style={{background:bucketColors[item.category]}} />{item.category}</span><b>{item.percent.toFixed(1)}%</b><small>¥{item.amount.toLocaleString("zh-CN")}</small></div>)}</div>
             </div>
           </article>
@@ -692,6 +776,18 @@ export default function Home() {
     {showAdd && <Modal title="添加一项持仓" eyebrow="PERSONAL PORTFOLIO" description="输入代码后自动显示全名和市场；持仓总成本由均价 × 数量计算。" onClose={() => setShowAdd(false)}><form className="modal-form" onSubmit={addHolding}><label className="wide">代码<input required value={assetForm.symbol} onChange={(event)=>setAssetForm({...assetForm,symbol:event.target.value,market:"",name:""})} placeholder="021000 / 600036 / AAPL" /><small>停止输入约半秒后自动查询</small></label><div className="resolved-identity wide"><span><small>持仓名称</small><strong>{assetLookup.state === "loading" ? "正在识别…" : assetForm.name || "输入代码后自动显示"}</strong></span><span><small>市场种类</small><strong className={assetForm.market ? `market-${assetForm.market}` : ""}>{assetForm.market || "待识别"}</strong></span></div><input type="hidden" required value={assetForm.name} readOnly /><label className="wide">资产分类（由你选择）<select value={assetForm.category} onChange={(event)=>setAssetForm({...assetForm,category:event.target.value as AssetBucket})}>{assetBuckets.map((item)=><option key={item}>{item}</option>)}</select></label><label>持仓均价（{assetForm.market === "美股" ? "USD" : "CNY"}）<input required type="number" min="0" step="any" value={assetForm.avgCost} onChange={(event)=>setAssetForm({...assetForm,avgCost:event.target.value})} /></label><label>持仓数<input required type="number" min="0.00000001" step="any" value={assetForm.quantity} onChange={(event)=>setAssetForm({...assetForm,quantity:event.target.value})} /></label><div className={`api-form-note wide ${assetLookup.state}`}>{assetLookup.state === "idle" ? "行情来源：东方财富、Nasdaq。" : assetLookup.message}</div><ModalActions onCancel={()=>setShowAdd(false)} label="保存到持仓" /></form></Modal>}
     {showSettings && <Modal title="个人偏好" eyebrow="PERSONAL SETTINGS" description="偏好与持仓会安全同步到你的私人面板。" onClose={() => setShowSettings(false)}><form className="modal-form" onSubmit={saveProfile}><label className="wide">你的称呼<input value={profile.name} onChange={(event)=>setProfile({...profile,name:event.target.value})} /></label><label>年度目标（%）<input type="number" value={profile.target} onChange={(event)=>setProfile({...profile,target:event.target.value})} /></label><label>风险偏好<select value={profile.risk} onChange={(event)=>setProfile({...profile,risk:event.target.value})}><option>稳健型</option><option>均衡型</option><option>进取型</option></select></label><div className="device-trust-tools wide"><div><strong>快速打开</strong><small>{deviceAccess.trusted ? "此设备已受信任，180 天内无需再次登录" : "信任本设备后，未来 180 天可以直接打开"}</small></div>{!deviceAccess.trusted && <button type="button" onClick={()=>void trustCurrentDevice()}>信任此设备</button>}{deviceMessage && <p>{deviceMessage}</p>}</div><div className="backup-tools wide"><div><strong>数据备份与迁移</strong><small>首次从 localhost 迁移到正式网页时使用一次</small></div><button type="button" onClick={exportBackup}>导出备份</button><label className="import-backup-button">导入并同步<input type="file" accept="application/json,.json" onChange={(event)=>void importBackup(event)} /></label>{backupMessage && <p>{backupMessage}</p>}</div><ModalActions onCancel={()=>setShowSettings(false)} label="保存偏好" /></form></Modal>}
   </main>;
+}
+
+function CnMarketPanel({ data, loading }: { data: CnMarketResponse | null; loading: boolean }) {
+  const items = todayMarketCodes.map((code) => data?.items?.[code]).filter((item): item is CnMarketItem => Boolean(item));
+  const stateLabel = data?.marketState === "open" ? "交易中" : data?.marketState === "lunch" ? "午间休市" : data?.marketState === "holiday" ? "休市 / 节假日" : "已收盘";
+  return <section className="panel cn-market-panel">
+    <div className="panel-head cn-market-head"><div><h2>今日行情</h2><p>仅展示 515450、中证红利、科创50</p></div><div className="cn-market-status"><span className={`market-state ${data?.marketState || "closed"}`}>{stateLabel}</span><small>{loading ? "更新中…" : data?.updatedAt ? `更新 ${new Date(data.updatedAt).toLocaleTimeString("zh-CN", { hour:"2-digit", minute:"2-digit" })}` : "等待数据"}</small></div></div>
+    <div className="cn-quote-list fixed-market-list">{items.map((item) => <div className="cn-quote-row" key={item.symbol}><div><strong>{item.name}</strong><small>{item.symbol} · {item.instrumentType === "etf" ? "ETF" : "指数"}</small></div><b>{item.instrumentType === "etf" ? "¥" : ""}{item.price.toLocaleString("zh-CN", { maximumFractionDigits: 3 })}</b><span className={item.changePercent == null ? "muted" : item.changePercent >= 0 ? "cn-up" : "cn-down"}>{item.changePercent == null ? "—" : `${item.changePercent >= 0 ? "+" : ""}${item.changePercent.toFixed(2)}%`}</span>{item.symbol === "515450" && <div className="index-yield"><span>指数股息率</span><strong>{item.indexDividendYieldPercent == null ? "—" : `${item.indexDividendYieldPercent.toFixed(2)}%`}</strong><small>{item.indexDividendYieldAsOf ? `截至 ${item.indexDividendYieldAsOf}` : "等待更新"}</small></div>}</div>)}</div>
+    <div className="yield-explanation"><strong>怎么算？</strong><span>指数股息率 ≈ 过去12个月成分股现金分红 ÷ 成分股总市值。515450 是 ETF，指数股息率不等于 ETF 实际分红率。</span><span>场外联接基金若每月分红：年度分红率 = 过去12个月每份分红合计 ÷ 当前基金单位净值；分红月份相加即可，不要把单月分红直接当成年化收益。</span></div>
+    {data?.items?.["515450"]?.linkedFunds?.length ? <div className="linked-fund-distributions"><div className="subsection-head"><h3>515450 场外联接基金分红</h3><span>按当前单位净值计算 · 元/份</span></div><p className="distribution-note">官方公告常按“每10份”披露，页面已除以10换算为“每1份”；A、C、I 是不同份额类别，不能混加。日期按净值分红记录日展示。</p><div className="linked-fund-grid">{data.items["515450"].linkedFunds.map((fund) => <article key={fund.code} className="linked-fund-card"><div className="linked-fund-title"><strong>{fund.name}</strong><small>{fund.code} · 净值 {fund.nav.toFixed(4)}（{fund.navDate}）</small></div><div className="linked-fund-rates"><span><b>近12个月</b><strong>{fund.annualRate.toFixed(2)}%</strong></span><span><b>近半年</b><strong>{fund.halfYearRate.toFixed(2)}%</strong></span><span><b>近季度</b><strong>{fund.quarterRate.toFixed(2)}%</strong></span></div><div className="monthly-distributions">{fund.monthly.map((item) => <span key={item.month}><b>{item.month.slice(5)}月</b><em>¥{item.perShare.toFixed(4)}/份</em><small>{item.date ? item.date.slice(5) : "—"} · {item.rate.toFixed(2)}%</small></span>)}</div></article>)}</div></div> : null}
+    {!items.length && !loading && <p className="cn-market-note">行情暂时未返回，请稍后再刷新页面。</p>}
+  </section>;
 }
 
 function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErrors, onLookup, onSaveAll }: { holdings: Holding[]; allCount: number; filter: "全部" | AssetBucket; setFilter: (value: "全部" | AssetBucket) => void; quotes: Record<string, MarketQuote>; quoteErrors: Record<string, string>; onLookup:(symbol:string)=>Promise<MarketQuote | null>; onSaveAll:(edits:{item:Holding;originalSymbol:string}[])=>void }) {
@@ -730,7 +826,7 @@ function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErr
   const lookupNew = async () => {
     if (!newDraft.symbol.trim()) return;
     const quote = await onLookup(newDraft.symbol);
-    if (quote) setNewDraft((current) => ({ ...current, symbol:quote.symbol, name:quote.name, market:quote.market, price:quote.price, currency:quote.currency, change:quote.change }));
+    if (quote) setNewDraft((current) => ({ ...current, symbol:quote.symbol, name:quote.name, market:quote.market, price:quote.price, currency:quote.currency, change:quote.change, category:quote.suggestedCategory ?? (quote.market === "A股" ? "A股" : current.category) }));
   };
   const saveAll = async () => {
     setEditError("");
@@ -761,10 +857,9 @@ function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErr
       patch({ [field]:value === "" ? 0 : Number(value) } as Partial<Holding>);
     };
     return <div className={`holding-row row-editing ${isNew ? "new-holding-row" : hasQuote ? (returnRate >= 0 ? "row-profit" : "row-loss") : ""}`} key={key}>
-      <div className="inline-asset-fields"><input className="inline-field code-field" value={draft.symbol} onChange={(event)=>patch({symbol:event.target.value.toUpperCase(),name:""})} onBlur={isNew ? lookupNew : ()=>void lookupExisting(key)} placeholder={isNew ? "输入新代码" : "资产代码"} aria-label="资产代码" /><select className="inline-select" value={draft.category} onChange={(event)=>patch({category:event.target.value as AssetBucket})} aria-label="资产分类">{assetBuckets.map((bucket)=><option key={bucket}>{bucket}</option>)}</select><small className="inline-lookup-hint">{shown.name || "输入代码后自动识别"} · {shown.market}</small><div className="inline-position-summary"><span>市值 {hasQuote ? `¥${shown.value.toLocaleString("zh-CN")}` : "—"}</span><b className={hasQuote ? (returnRate >= 0 ? "up" : "down") : ""}>收益 {hasQuote ? `${returnRate >= 0 ? "+" : ""}${returnRate.toFixed(2)}%` : "—"}</b><b className={hasQuote ? (shown.value >= shown.cost ? "up" : "down") : ""}>盈亏 {hasQuote ? `${shown.value >= shown.cost ? "+" : ""}¥${(shown.value-shown.cost).toLocaleString("zh-CN")}` : "—"}</b></div></div>
-      <span className="market-price-cell"><strong className={shown.change >= 0 ? "up" : "down"}>{hasQuote ? `${shown.currency}${shown.price.toLocaleString("zh-CN")}` : "—"}</strong><small className={shown.change >= 0 ? "up" : "down"}>{hasQuote ? `${shown.change >= 0 ? "+" : ""}${shown.change.toFixed(2)}% 今日` : quoteErrors[shown.symbol] || "等待行情"}</small></span>
-      <span><input className="inline-field number-field" type="number" min="0" step="any" inputMode="decimal" value={numericText.avgCost} onChange={(event)=>updateNumericText("avgCost",event.target.value)} placeholder="均价" aria-label="持仓均价" /><small>总成本 ¥{shown.cost.toLocaleString("zh-CN")}</small></span>
-      <span><input className="inline-field number-field" type="number" min="0.00000001" step="any" inputMode="decimal" value={numericText.quantity} onChange={(event)=>updateNumericText("quantity",event.target.value)} placeholder="持仓数" aria-label="持仓数" /><small>{shown.market === "基金" ? "份" : "股"}</small></span>
+      <div className="edit-group edit-identity"><span className="edit-group-title">{isNew ? "新增资产" : "资产信息"}</span><div className="inline-asset-fields"><label><small>代码</small><input className="inline-field code-field" value={draft.symbol} onChange={(event)=>patch({symbol:event.target.value.toUpperCase(),name:""})} onBlur={isNew ? lookupNew : ()=>void lookupExisting(key)} placeholder={isNew ? "输入新代码" : "资产代码"} aria-label="资产代码" /></label><label><small>资产分类</small><select className="inline-select" value={draft.category} onChange={(event)=>patch({category:event.target.value as AssetBucket})} aria-label="资产分类">{assetBuckets.map((bucket)=><option key={bucket}>{bucket}</option>)}</select></label></div><small className="inline-lookup-hint">{shown.name || "输入代码后自动识别"} · {shown.market}</small></div>
+      <div className="edit-group edit-position"><span className="edit-group-title">持仓数据</span><div className="edit-number-grid"><label><small>持仓均价</small><input className="inline-field number-field" type="number" min="0" step="any" inputMode="decimal" value={numericText.avgCost} onChange={(event)=>updateNumericText("avgCost",event.target.value)} placeholder="均价" aria-label="持仓均价" /></label><label><small>持仓数</small><input className="inline-field number-field" type="number" min="0.00000001" step="any" inputMode="decimal" value={numericText.quantity} onChange={(event)=>updateNumericText("quantity",event.target.value)} placeholder="数量" aria-label="持仓数" /></label></div><small className="edit-cost-note">总成本 ¥{shown.cost.toLocaleString("zh-CN")} · {shown.market === "基金" ? "份额" : "股数"}</small></div>
+      <div className="edit-group edit-result"><span className="edit-group-title">实时结果</span><span className="market-price-cell"><strong>{hasQuote ? `${shown.currency}${shown.price.toLocaleString("zh-CN")}` : "—"}</strong><small>{hasQuote ? `${shown.change >= 0 ? "+" : ""}${shown.change.toFixed(2)}% 今日` : quoteErrors[shown.symbol] || "等待行情"}</small></span><div className="inline-position-summary"><span>市值 {hasQuote ? `¥${shown.value.toLocaleString("zh-CN")}` : "—"}</span><b className={hasQuote ? (returnRate >= 0 ? "up" : "down") : ""}>{hasQuote ? `${returnRate >= 0 ? "+" : ""}${returnRate.toFixed(2)}%` : "—"}</b><b className={hasQuote ? (shown.value >= shown.cost ? "up" : "down") : ""}>{hasQuote ? `${shown.value >= shown.cost ? "+" : ""}¥${(shown.value-shown.cost).toLocaleString("zh-CN")}` : "—"}</b></div></div>
     </div>;
   };
 
@@ -775,7 +870,7 @@ function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErr
     </div>
     {editError && <div className="portfolio-edit-error">{editError}</div>}
     <div className="holding-table">
-      <div className="holding-row holding-header">{editing ? <><span>资产</span><span>股价</span><span>成本</span><span>数量</span></> : <><span>资产</span><span>持仓（市值）</span><span>累计盈亏</span><span>股价</span></>}</div>
+      <div className="holding-row holding-header">{editing ? <><span>资产信息</span><span>持仓数据</span><span>实时结果</span></> : <><span>资产</span><span>持仓（市值）</span><span>累计盈亏</span><span>股价</span></>}</div>
       {editing ? <>{sortedHoldings.map((item)=>editableRow(drafts[item.symbol] ?? item, item.symbol))}{editableRow(newDraft, "__new__", true)}</> : sortedHoldings.map((item)=>{
         const hasQuote = item.quoteSource !== "unavailable";
         const returnRate = item.cost > 0 ? ((item.value-item.cost)/item.cost)*100 : 0;

@@ -1,11 +1,13 @@
 import { enrollTrustedDevice, getDeviceAccess, revokeTrustedDevice, sameOriginMutation } from "../../device-session";
+import { isPasswordSetupRequired } from "../../password-auth";
 
 export async function GET(request: Request) {
   try {
     const access = await getDeviceAccess(request);
-    return Response.json(access, { status: access.authorized ? 200 : 401 });
+    const setupRequired = access.authorized ? false : await isPasswordSetupRequired();
+    return Response.json({ ...access, setupRequired }, { status: access.authorized ? 200 : 401 });
   } catch {
-    return Response.json({ authorized: false, source: null, trusted: false, ownerInitialized: false }, { status: 503 });
+    return Response.json({ authorized: false, source: null, trusted: false, ownerInitialized: false, setupRequired: false }, { status: 503 });
   }
 }
 

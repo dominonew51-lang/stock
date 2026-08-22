@@ -5,7 +5,7 @@ import type { CnMarketItem } from "./market-data/cn-market";
 
 type Market = "美股" | "A股" | "基金";
 type AssetBucket = "美股指数" | "红利" | "美股" | "A股" | "加密货币" | "现金/类现金";
-type MarketQuote = { symbol: string; name: string; market: Market; price: number; currency: "$" | "¥"; change: number; asOf: string; provider: string; suggestedCategory?: AssetBucket };
+type MarketQuote = { symbol: string; name: string; market: Market; price: number; currency: "$" | "¥"; change: number; asOf: string; provider: string; suggestedCategory?: AssetBucket; marketCap?: number };
 type CnMarketResponse = { marketState: "open" | "lunch" | "closed" | "holiday"; timezone: string; updatedAt: string; items: Record<string, CnMarketItem>; errors: Record<string, string> };
 type Holding = {
   symbol: string; name: string; market: Market; price: number; currency: "$" | "¥";
@@ -131,10 +131,18 @@ const defaultUSSectors: Record<string, string[]> = {
   "信息技术": ["MSFT", "GOOGL", "AMZN", "PLTR"],
   "半导体": ["NVDA", "AVGO", "AMD", "TSM"],
   "航天军工": ["RKLB", "ASTS", "LUNR", "RDW", "BA", "LMT", "NOC", "RTX", "PL"],
+  "互联网": ["META", "NFLX", "GOOGL", "AMZN"],
+  "金融": ["JPM", "BAC", "GS", "BRK.B"],
+  "医疗": ["LLY", "UNH", "JNJ", "MRK"],
+  "能源": ["XOM", "CVX", "COP", "SLB"],
   "ETF": ["QQQ", "SPY", "DIA"],
+};
+const usCompanyNames: Record<string,string> = {
+  TSLA:"Tesla", NVDA:"NVIDIA", RKLB:"Rocket Lab", PLTR:"Palantir", AVGO:"Broadcom", MSFT:"Microsoft", GOOGL:"Alphabet", AMZN:"Amazon", AMD:"AMD", TSM:"TSMC", ASTS:"AST SpaceMobile", LUNR:"Intuitive Machines", RDW:"Redwire", BA:"Boeing", LMT:"Lockheed Martin", NOC:"Northrop Grumman", RTX:"RTX", PL:"Planet Labs", META:"Meta", NFLX:"Netflix", JPM:"JPMorgan", BAC:"Bank of America", GS:"Goldman Sachs", "BRK.B":"Berkshire Hathaway", LLY:"Eli Lilly", UNH:"UnitedHealth", JNJ:"Johnson & Johnson", MRK:"Merck", XOM:"Exxon Mobil", CVX:"Chevron", COP:"ConocoPhillips", SLB:"SLB", QQQ:"Nasdaq 100 ETF", SPY:"S&P 500 ETF", DIA:"Dow Jones ETF",
 };
 type CalendarDay = { date: string; profit: number; rate: number };
 type CalendarMonth = { month: number; profit: number; rate: number; positiveRatio: number; recordedDays: number; days: CalendarDay[] };
+type CalendarYear = { year: number; profit: number; rate: number; positiveRatio: number; recordedDays: number };
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -175,28 +183,53 @@ function buildPortfolioTrend(history: PortfolioSnapshot[], range: string, curren
   };
 }
 
-function buildReturnCalendar(history: PortfolioSnapshot[], year: number, currentValue: number, currentCost: number): CalendarMonth[] {
+function buildDailyReturns(history: PortfolioSnapshot[], currentValue: number, currentCost: number): CalendarDay[] {
   const records = upsertSnapshot(history, {
     date: localDateKey(),
     value: currentValue,
     cost: currentCost,
     returnRate: currentCost > 0 ? ((currentValue - currentCost) / currentCost) * 100 : 0,
   });
-  const daily = records.slice(1).map((item, index) => {
+  return records.slice(1).map((item, index) => {
     const previous = records[index];
     const cashFlow = item.cost - previous.cost;
     const profit = item.value - previous.value - cashFlow;
     const rate = previous.value > 0 ? (profit / previous.value) * 100 : 0;
     return { date:item.date, profit, rate };
-  }).filter((item) => Number(item.date.slice(0, 4)) === year);
+  });
+}
+
+function compoundRate(days: CalendarDay[]) {
+  return (days.reduce((factor, item) => factor * (1 + item.rate / 100), 1) - 1) * 100;
+}
+
+function buildReturnCalendar(history: PortfolioSnapshot[], year: number, currentValue: number, currentCost: number): CalendarMonth[] {
+  const daily = buildDailyReturns(history, currentValue, currentCost).filter((item) => Number(item.date.slice(0, 4)) === year);
   return Array.from({ length:12 }, (_, index) => {
     const month = index + 1;
     const monthKey = `${year}-${String(month).padStart(2, "0")}`;
     const days = daily.filter((item) => item.date.startsWith(monthKey));
     const profit = days.reduce((sum, item) => sum + item.profit, 0);
-    const rate = (days.reduce((factor, item) => factor * (1 + item.rate / 100), 1) - 1) * 100;
+    const rate = compoundRate(days);
     const positiveRatio = days.length ? (days.filter((item) => item.profit > 0).length / days.length) * 100 : 0;
     return { month, profit, rate, positiveRatio, recordedDays:days.length, days };
+  });
+}
+
+function buildYearCalendar(history: PortfolioSnapshot[], currentValue: number, currentCost: number): CalendarYear[] {
+  const days = buildDailyReturns(history, currentValue, currentCost);
+  const currentYear = new Date().getFullYear();
+  const availableYears = [...new Set(days.map((item) => Number(item.date.slice(0, 4))).filter(Number.isFinite))];
+  const firstYear = Math.min(currentYear - 3, ...(availableYears.length ? availableYears : [currentYear]));
+  return Array.from({ length: currentYear - firstYear + 1 }, (_, index) => firstYear + index).map((year) => {
+    const yearDays = days.filter((item) => Number(item.date.slice(0, 4)) === year);
+    return {
+      year,
+      profit: yearDays.reduce((sum, item) => sum + item.profit, 0),
+      rate: compoundRate(yearDays),
+      positiveRatio: yearDays.length ? yearDays.filter((item) => item.profit > 0).length / yearDays.length * 100 : 0,
+      recordedDays: yearDays.length,
+    };
   });
 }
 
@@ -286,7 +319,7 @@ function usMarketState(now = new Date()): { state:USMarketState; label:string; t
   const hour = Number(parts.find((part) => part.type === "hour")?.value || 0);
   const minute = Number(parts.find((part) => part.type === "minute")?.value || 0);
   const total = hour * 60 + minute;
-  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  const time = new Intl.DateTimeFormat("zh-CN", { timeZone:"Asia/Shanghai", hour:"2-digit", minute:"2-digit", hour12:false }).format(now);
   if (weekday === "Sat" || weekday === "Sun") return { state:"closed", label:"已收盘", time };
   if (total >= 240 && total < 570) return { state:"pre", label:"盘前", time };
   if (total >= 570 && total < 960) return { state:"open", label:"盘中", time };
@@ -299,9 +332,11 @@ function quoteTone(change:number) { return change >= 0 ? "up" : "down"; }
 function AllocationContent({ data, totalValue }: { data:Array<{ category:AssetBucket; amount:number; percent:number; className:string }>; totalValue:number }) {
   let cursor = 0;
   const gradient = data.map((item) => { const start = cursor; cursor += item.percent; return `${bucketColors[item.category]} ${start}% ${cursor}%`; }).join(", ");
+  let labelCursor = 0;
+  const labels = data.map((item)=>{ const midpoint = labelCursor + item.percent / 2; labelCursor += item.percent; const angle = midpoint / 100 * Math.PI * 2 - Math.PI / 2; return { ...item, left:50 + Math.cos(angle) * 45, top:50 + Math.sin(angle) * 45 }; }).filter((item)=>item.percent >= 2);
   return <div className="allocation-switch-content">
     <div className="allocation-chart-layout allocation-inline-layout">
-      <div className="allocation-pie" style={{background:totalValue > 0 ? `conic-gradient(${gradient})` : "#e7e6e3"}} role="img" aria-label="资产配置分布"><div><span>总市值</span><strong>¥{totalValue >= 10000 ? `${(totalValue/10000).toFixed(1)}万` : totalValue.toLocaleString("zh-CN")}</strong></div></div>
+      <div className="allocation-pie-wrap"><div className="allocation-pie" style={{background:totalValue > 0 ? `conic-gradient(${gradient})` : "#e7e6e3"}} role="img" aria-label="资产配置分布"><div><span>总市值</span><strong>¥{totalValue >= 10000 ? `${(totalValue/10000).toFixed(1)}万` : totalValue.toLocaleString("zh-CN")}</strong></div></div>{labels.map((item)=><span key={item.category} className="allocation-pie-label" style={{left:`${item.left}%`,top:`${item.top}%`}}>{item.category} {item.percent.toFixed(0)}%</span>)}</div>
       <div className="allocation-legend-list">{data.map((item)=><div key={item.category}><span><i style={{background:bucketColors[item.category]}} />{item.category}</span><b>{item.percent.toFixed(1)}%</b><small>¥{item.amount.toLocaleString("zh-CN")}</small></div>)}</div>
     </div>
   </div>;
@@ -344,6 +379,7 @@ export default function Home() {
   const [usWatchlist, setUsWatchlist] = useState<string[]>(defaultUSWatchlist);
   const [usSectorLists, setUsSectorLists] = useState<Record<string, string[]>>(defaultUSSectors);
   const [usQuotes, setUsQuotes] = useState<Record<string, USQuote>>({});
+  const [selectedOverviewSymbol, setSelectedOverviewSymbol] = useState<string | null>(null);
 
   const quoteCodes = useMemo(() => {
     const symbols = new Set<string>();
@@ -622,6 +658,7 @@ export default function Home() {
 
   const portfolioTrend = useMemo(() => buildPortfolioTrend(portfolioHistory, range, totalValue, totalCost), [portfolioHistory, range, totalCost, totalValue]);
   const returnCalendar = useMemo(() => buildReturnCalendar(portfolioHistory, calendarYear, totalValue, totalCost), [calendarYear, portfolioHistory, totalCost, totalValue]);
+  const returnYears = useMemo(() => buildYearCalendar(portfolioHistory, totalValue, totalCost), [portfolioHistory, totalCost, totalValue]);
   const monthTrend = useMemo(() => buildPortfolioTrend(portfolioHistory, "1月", totalValue, totalCost), [portfolioHistory, totalCost, totalValue]);
   const latestReturn = portfolioTrend.returns[portfolioTrend.returns.length - 1] || 0;
   const currentMonth = localDateKey().slice(0, 7);
@@ -643,19 +680,6 @@ export default function Home() {
     const amount = allHoldings.filter((item) => item.category === category).reduce((sum, item) => sum + item.value, 0);
     return { category, amount, percent: totalValue > 0 ? (amount / totalValue) * 100 : 0, className: bucketClasses[category] };
   });
-  let allocationCursor = 0;
-  const allocationGradient = allocationData.map((item) => {
-    const start = allocationCursor;
-    allocationCursor += item.percent;
-    return `${bucketColors[item.category]} ${start}% ${allocationCursor}%`;
-  }).join(", ");
-  let allocationLabelCursor = 0;
-  const allocationLabels = allocationData.filter((item) => item.percent > 0).map((item) => {
-    const midpoint = allocationLabelCursor + item.percent / 2;
-    allocationLabelCursor += item.percent;
-    const angle = (midpoint / 100) * Math.PI * 2 - Math.PI / 2;
-    return { ...item, left: 50 + Math.cos(angle) * 55, top: 50 + Math.sin(angle) * 55 };
-  });
   const shownTotal = baseCurrency === "CNY" ? totalValue : totalValue / 7.18;
   const shownDailyProfit = baseCurrency === "CNY" ? dailyProfit : dailyProfit / 7.18;
   const currencySymbol = baseCurrency === "CNY" ? "¥" : "$";
@@ -664,7 +688,7 @@ export default function Home() {
     const bucketMatch = bucketFilter === "全部" || item.category === bucketFilter;
     return bucketMatch && (!keyword || item.name.toLowerCase().includes(keyword) || item.symbol.toLowerCase().includes(keyword));
   }), [allHoldings, bucketFilter, query]);
-  const usHoldingSymbols = useMemo(() => new Set(allHoldings.filter((item) => item.market === "美股").map((item) => item.symbol)), [allHoldings]);
+  const selectedOverviewHolding = selectedOverviewSymbol ? allHoldings.find((item) => item.symbol === selectedOverviewSymbol) : undefined;
 
   function addHolding(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -841,33 +865,33 @@ export default function Home() {
         </div>
       </header>
       {page === "overview" && <>
-        <section className="summary-card">
-          <div className="summary-main">
-            <div className="eyebrow">总资产（{baseCurrency}）<button onClick={() => setAmountsVisible(!amountsVisible)} aria-label="显示或隐藏金额">{amountsVisible ? "◉" : "○"}</button></div>
-            <div className="total">{amountsVisible ? `${currencySymbol} ${shownTotal.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}` : "••••••••"}<span className="live-pill">实时</span></div>
-            <div className={`pnl ${dailyProfit >= 0 ? "up" : "down"}`}><span>今日盈亏</span><strong>{dailyProfit >= 0 ? "+" : "-"}{currencySymbol} {Math.abs(shownDailyProfit).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}</strong><em>{dailyReturn >= 0 ? "+" : ""}{dailyReturn.toFixed(2)}%</em><small>{dailyProfit > 0 ? "↗" : dailyProfit < 0 ? "↘" : "→"}</small></div>
-            <div className="long-term-counter"><span>坚持长期主义</span><strong>{longTermDays}</strong><small>天</small></div>
-            <div className="currency-toggle"><button className={baseCurrency === "CNY" ? "active" : ""} onClick={() => setBaseCurrency("CNY")}>CNY</button><button className={baseCurrency === "USD" ? "active" : ""} onClick={() => setBaseCurrency("USD")}>USD</button></div>
-          </div>
-          <div className="summary-stats">
-            <div><span>当月收益</span><strong className={monthlyReturn >= 0 ? "up" : "down"}>{monthlyReturn >= 0 ? "+" : ""}{monthlyReturn.toFixed(2)}%</strong><small>本月 {monthlyProfit >= 0 ? "+" : "-"}¥ {Math.abs(monthlyProfit).toLocaleString("zh-CN")}</small></div>
-            <div><span>今年收益</span><strong className={profitRate >= 0 ? "up" : "down"}>{profitRate >= 0 ? "+" : ""}{profitRate.toFixed(2)}%</strong><small>收益 {profit >= 0 ? "+" : "-"}¥ {Math.abs(profit).toLocaleString("zh-CN")}</small></div>
-            <div><span>历史收益</span><strong className={profitRate >= 0 ? "up" : "down"}>{profitRate >= 0 ? "+" : ""}{profitRate.toFixed(2)}%</strong><small>累计 {profit >= 0 ? "+" : "-"}¥ {Math.abs(profit).toLocaleString("zh-CN")}</small></div>
-            <div><span>投入本金</span><strong>¥ {totalCost.toLocaleString("zh-CN")}</strong><small>{allHoldings.length} 项资产</small></div>
-          </div>
-        </section>
-
-        <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} />
-        <section className="dashboard-grid">
+        <section className="overview-hero">
+          <section className="summary-card">
+            <div className="summary-main">
+              <div className="eyebrow">总资产（{baseCurrency}）<button onClick={() => setAmountsVisible(!amountsVisible)} aria-label="显示或隐藏金额">{amountsVisible ? "◉" : "○"}</button></div>
+              <div className="total">{amountsVisible ? `${currencySymbol} ${shownTotal.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}` : "••••••••"}<span className="live-pill">实时</span></div>
+              <div className={`pnl ${dailyProfit >= 0 ? "up" : "down"}`}><span>今日盈亏</span><strong>{dailyProfit >= 0 ? "+" : "-"}{currencySymbol} {Math.abs(shownDailyProfit).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}</strong><em>{dailyReturn >= 0 ? "+" : ""}{dailyReturn.toFixed(2)}%</em><small>{dailyProfit > 0 ? "↗" : dailyProfit < 0 ? "↘" : "→"}</small></div>
+              <div className="long-term-counter"><span>坚持长期主义</span><strong>{longTermDays}</strong><small>天</small></div>
+              <div className="currency-toggle"><button className={baseCurrency === "CNY" ? "active" : ""} onClick={() => setBaseCurrency("CNY")}>CNY</button><button className={baseCurrency === "USD" ? "active" : ""} onClick={() => setBaseCurrency("USD")}>USD</button></div>
+            </div>
+            <div className="summary-stats">
+              <div><span>当月收益</span><strong className={monthlyReturn >= 0 ? "up" : "down"}>{monthlyReturn >= 0 ? "+" : ""}{monthlyReturn.toFixed(2)}%</strong><small>本月 {monthlyProfit >= 0 ? "+" : "-"}¥ {Math.abs(monthlyProfit).toLocaleString("zh-CN")}</small></div>
+              <div><span>今年收益</span><strong className={profitRate >= 0 ? "up" : "down"}>{profitRate >= 0 ? "+" : ""}{profitRate.toFixed(2)}%</strong><small>收益 {profit >= 0 ? "+" : "-"}¥ {Math.abs(profit).toLocaleString("zh-CN")}</small></div>
+              <div><span>历史收益</span><strong className={profitRate >= 0 ? "up" : "down"}>{profitRate >= 0 ? "+" : ""}{profitRate.toFixed(2)}%</strong><small>累计 {profit >= 0 ? "+" : "-"}¥ {Math.abs(profit).toLocaleString("zh-CN")}</small></div>
+              <div><span>投入本金</span><strong>¥ {totalCost.toLocaleString("zh-CN")}</strong><small>{allHoldings.length} 项资产</small></div>
+            </div>
+          </section>
           <article className="panel performance-panel analysis-panel">
             <div className="panel-head trend-head"><div><h2>{trendMode === "allocation" ? "资产配置分布" : "资产分析"}</h2><p>{trendMode === "allocation" ? "按当前持仓市值实时统计" : trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['profit','收益'],['assets','市值成本'],['allocation','资产配置分布']] as [AnalysisMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div>{trendMode !== "allocation" && <div className="segmented">{["1月","3月","6月","1年","全部"].map((item) => <button key={item} className={range === item ? "selected" : ""} onClick={() => setRange(item)}>{item}</button>)}</div>}</div></div>
             {trendMode === "allocation" ? <AllocationContent data={allocationData} totalValue={totalValue} /> : <><div className="chart-legend"><span><i className="legend-value" />{trendView.primary} <b className={selectedTrendMode !== "assets" ? (profit >= 0 ? "up" : "down") : ""}>{trendView.primaryValue}</b></span>{trendView.secondary && <span><i className="legend-cost" />{trendView.secondary} <b>{trendView.secondaryValue}</b></span>}<span className="chart-note">{trendView.note}</span></div><PerformanceChart mode={selectedTrendMode} trend={portfolioTrend} range={range} /></>}
           </article>
         </section>
-        <ReturnCalendar months={returnCalendar} year={calendarYear} onYearChange={setCalendarYear} mode={calendarMode} onModeChange={setCalendarMode} />
-        <div className="overview-heatmap-section"><div className="section-inline-head"><div><h2>持仓热力图</h2><p>面积按持仓市值，颜色按今日涨跌</p></div></div><HoldingsHeatmap holdings={allHoldings} onSelect={()=>undefined} /></div>
+        <section className="panel overview-heatmap-section"><div className="section-inline-head"><div><h2>持仓热力图</h2><p>面积按持仓市值，颜色按今日涨跌；点击查看持仓详情</p></div></div><HoldingsHeatmap holdings={allHoldings} onSelect={setSelectedOverviewSymbol} includeAll /></section>
+        {selectedOverviewHolding && <PortfolioQuickCard symbol={selectedOverviewHolding.symbol} quote={remoteQuotes[selectedOverviewHolding.symbol]} holding={selectedOverviewHolding} onClose={()=>setSelectedOverviewSymbol(null)} />}
+        <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} />
+        <ReturnCalendar months={returnCalendar} years={returnYears} year={calendarYear} onYearChange={setCalendarYear} mode={calendarMode} onModeChange={setCalendarMode} />
       </>}
-      {page === "ashare" && <section className="market-page-content"><div className="market-page-intro"><span>CHINA MARKET</span><h2>A股行情</h2><p>重要指数与持仓相关市场信息</p></div><CnMarketPanel data={cnMarket} loading={cnMarketLoading} expandedByDefault /></section>}
+      {page === "ashare" && <section className="market-page-content"><div className="market-page-intro"><div><span>CHINA MARKET</span><h2>A股行情</h2><p>重要指数与持仓相关市场信息</p></div></div><CnMarketPanel data={cnMarket} loading={cnMarketLoading} expandedByDefault /></section>}
       {page === "us" && <USMarketPage watchlist={usWatchlist} sectorLists={usSectorLists} quotes={usQuotes} holdings={allHoldings} onWatchlistChange={setUsWatchlist} onSectorListsChange={setUsSectorLists} />}
       <BottomNavigation page={page} onChange={setPage} />
     </section>
@@ -887,14 +911,26 @@ function MarketSparkline({ item }: { item: CnMarketItem }) {
   return <svg className="market-spark" viewBox="0 0 100 42" preserveAspectRatio="none" role="img" aria-label={`${item.name}今日走势`}><line x1="0" x2="100" y1="22" y2="22" /><polyline points={points} className={(item.changePercent ?? 0) >= 0 ? "cn-up-line" : "cn-down-line"} /></svg>;
 }
 
-function HoldingsHeatmap({ holdings, onSelect }: { holdings: Holding[]; onSelect: (symbol: string) => void }) {
-  const items = holdings.filter((item) => item.market === "美股" && item.value > 0).sort((a, b) => b.value - a.value);
-  if (!items.length) return <div className="empty-state">暂无美股持仓，添加后会在这里显示组合热力图。</div>;
+function HoldingsHeatmap({ holdings, onSelect, includeAll = false }: { holdings: Holding[]; onSelect: (symbol: string) => void; includeAll?: boolean }) {
+  const items = holdings.filter((item) => (includeAll || item.market === "美股") && item.value > 0).sort((a, b) => b.value - a.value);
+  const total = items.reduce((sum, item) => sum + item.value, 0);
+  if (!items.length) return <div className="empty-state">暂无{includeAll ? "" : "美股"}持仓，添加后会在这里显示组合热力图。</div>;
   return <div className="portfolio-treemap">{items.map((item) => {
     const intensity = Math.min(.85, .22 + Math.abs(item.change || 0) / 8);
     const positive = (item.change || 0) >= 0;
-    return <button key={item.symbol} className="treemap-tile" style={{ flexGrow: Math.max(item.value, 1), background: positive ? `rgba(193, 57, 57, ${intensity})` : `rgba(47, 121, 74, ${intensity})` }} onClick={() => onSelect(item.symbol)}><strong>{item.symbol}</strong><span>{item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%</span><small>¥{item.value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}</small></button>;
+    const percentage = total > 0 ? item.value / total * 100 : 0;
+    return <button key={item.symbol} className="treemap-tile" style={{ flexGrow: Math.max(item.value, 1), flexBasis:`${Math.max(112, Math.sqrt(Math.max(percentage, 1)) * 42)}px`, background: positive ? `rgba(193, 57, 57, ${intensity})` : `rgba(47, 121, 74, ${intensity})` }} onClick={() => onSelect(item.symbol)}><strong>{item.symbol}</strong><span>{item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%</span><small>¥{item.value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })} · {percentage.toFixed(1)}%</small></button>;
   })}</div>;
+}
+
+function PortfolioQuickCard({ symbol, quote, holding, marketCap, onClose }: { symbol:string; quote?:MarketQuote; holding?:Holding; marketCap?:string; onClose:()=>void }) {
+  const change = quote?.change ?? holding?.change ?? 0;
+  const price = quote?.price ?? holding?.price;
+  const currency = quote?.currency ?? holding?.currency ?? "$";
+  const previousPrice = price && 1 + change / 100 > 0 ? price / (1 + change / 100) : 0;
+  const dayAmount = price ? price - previousPrice : 0;
+  const holdingRate = holding && holding.cost > 0 ? (holding.value - holding.cost) / holding.cost * 100 : 0;
+  return <div className="quick-stock-card" role="dialog" aria-label={`${symbol}快速信息`}><button className="quick-card-close" onClick={onClose} aria-label="关闭快速信息">×</button><div className="quick-card-title"><strong>{quote?.name || holding?.name || symbol}</strong><span>{symbol} · {holding?.market || quote?.market || "美股"}</span></div><div className="quick-card-price"><b>{price ? `${currency}${price.toLocaleString("en-US", { maximumFractionDigits: 3 })}` : "—"}</b><em className={quoteTone(change)}>{change >= 0 ? "+" : ""}{change.toFixed(2)}% <small>{dayAmount >= 0 ? "+" : "-"}{currency}{Math.abs(dayAmount).toFixed(2)}</small></em></div><div className="quick-card-market"><span>公司市值</span><strong>{marketCap || "行情源暂未提供"}</strong></div>{holding && <div className="quick-card-holding"><span><small>持仓数量</small><b>{holding.quantity.toLocaleString("zh-CN")}</b></span><span><small>持仓市值</small><b>¥{holding.value.toLocaleString("zh-CN")}</b></span><span><small>成本价</small><b>{holding.currency}{holding.avgCost.toLocaleString("zh-CN")}</b></span><span><small>持仓收益</small><b className={holding.value - holding.cost >= 0 ? "up" : "down"}>{holding.value - holding.cost >= 0 ? "+" : "-"}¥{Math.abs(holding.value - holding.cost).toLocaleString("zh-CN")}</b></span><span><small>收益率</small><b className={holdingRate >= 0 ? "up" : "down"}>{holdingRate >= 0 ? "+" : ""}{holdingRate.toFixed(2)}%</b></span></div>}</div>;
 }
 
 function USQuoteMatrix({ symbols, quotes, holdings, onSelect }: { symbols: string[]; quotes: Record<string, USQuote>; holdings: Holding[]; onSelect: (symbol: string) => void }) {
@@ -903,27 +939,37 @@ function USQuoteMatrix({ symbols, quotes, holdings, onSelect }: { symbols: strin
     const holding = holdings.find((item) => item.symbol === symbol);
     const change = quote?.change ?? holding?.change ?? 0;
     const tone = quoteTone(change);
-    return <button key={symbol} className={`us-quote-tile ${tone}`} onClick={() => onSelect(symbol)}><strong>{symbol}</strong><span>{quote ? `${quote.price.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "—"}</span><b>{change >= 0 ? "+" : ""}{change.toFixed(2)}%</b></button>;
+    return <button key={symbol} className={`us-quote-tile ${tone}`} onClick={() => onSelect(symbol)}><i className="ticker-logo" aria-hidden="true">{symbol.replace(".", "").slice(0, 2)}</i><span className="us-tile-name"><strong>{symbol}</strong><small>{usCompanyNames[symbol] || quote?.name || "自选股票"}</small></span><b>{change >= 0 ? "+" : ""}{change.toFixed(2)}%</b><em>{quote ? `${quote.currency}${quote.price.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "等待行情"}</em></button>;
   })}</div>;
 }
 
 function USMarketPage({ watchlist, sectorLists, quotes, holdings, onWatchlistChange, onSectorListsChange }: { watchlist: string[]; sectorLists: Record<string, string[]>; quotes: Record<string, USQuote>; holdings: Holding[]; onWatchlistChange: (symbols: string[]) => void; onSectorListsChange: (lists: Record<string, string[]>) => void }) {
   const [mode, setMode] = useState<"matrix" | "holdings">("matrix");
-  const [activeSector, setActiveSector] = useState(Object.keys(sectorLists)[0] || "信息技术");
+  const [activeSector, setActiveSector] = useState<string | null>(null);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [newSymbol, setNewSymbol] = useState("");
+  const [watchInput, setWatchInput] = useState("");
+  const [sectorInput, setSectorInput] = useState("");
+  const [detailQuotes, setDetailQuotes] = useState<Record<string,USQuote>>({});
   const market = usMarketState();
-  const selectedQuote = selectedSymbol ? quotes[selectedSymbol] : undefined;
+  const selectedQuote = selectedSymbol ? detailQuotes[selectedSymbol] ?? quotes[selectedSymbol] : undefined;
   const selectedHolding = selectedSymbol ? holdings.find((item) => item.symbol === selectedSymbol) : undefined;
-  const addWatch = () => { const symbol = newSymbol.trim().toUpperCase(); if (!symbol || watchlist.includes(symbol)) return; onWatchlistChange([...watchlist, symbol]); setNewSymbol(""); };
+  const addWatch = () => { const symbol = watchInput.trim().toUpperCase(); if (!symbol || watchlist.includes(symbol)) return; onWatchlistChange([...watchlist, symbol]); setWatchInput(""); };
   const removeWatch = (symbol: string) => onWatchlistChange(watchlist.filter((item) => item !== symbol));
   const moveWatch = (index: number, direction: -1 | 1) => { const next = [...watchlist]; const target = index + direction; if (target < 0 || target >= next.length) return; [next[index], next[target]] = [next[target], next[index]]; onWatchlistChange(next); };
-  const addToSector = () => { const symbol = newSymbol.trim().toUpperCase(); if (!symbol) return; onSectorListsChange({ ...sectorLists, [activeSector]: Array.from(new Set([...(sectorLists[activeSector] || []), symbol])) }); setNewSymbol(""); };
-  const currentSectorSymbols = sectorLists[activeSector] || [];
+  const addToSector = () => { const symbol = sectorInput.trim().toUpperCase(); if (!symbol || !activeSector) return; onSectorListsChange({ ...sectorLists, [activeSector]: Array.from(new Set([...(sectorLists[activeSector] || []), symbol])) }); setSectorInput(""); };
+  const removeFromSector = (symbol:string) => { if (!activeSector) return; onSectorListsChange({ ...sectorLists, [activeSector]:(sectorLists[activeSector] || []).filter((item)=>item !== symbol) }); };
+  const currentSectorSymbols = activeSector ? sectorLists[activeSector] || [] : [];
+  useEffect(()=>{
+    if (!selectedSymbol || detailQuotes[selectedSymbol]) return;
+    const controller = new AbortController();
+    fetch(`/api/assets?codes=${encodeURIComponent(selectedSymbol)}&details=1`, { cache:"no-store", signal:controller.signal }).then((response)=>response.json()).then((rawPayload)=>{ const payload = rawPayload as {quotes?:Record<string,USQuote>}; const detail = payload.quotes?.[selectedSymbol]; if (detail) setDetailQuotes((current)=>({ ...current, [selectedSymbol]:detail })); }).catch(()=>undefined);
+    return ()=>controller.abort();
+  },[detailQuotes,selectedSymbol]);
+  const marketCap = selectedQuote?.marketCap ? selectedQuote.marketCap >= 1e12 ? `$${(selectedQuote.marketCap / 1e12).toFixed(2)}万亿` : selectedQuote.marketCap >= 1e9 ? `$${(selectedQuote.marketCap / 1e9).toFixed(1)}十亿` : `$${selectedQuote.marketCap.toLocaleString("en-US")}` : undefined;
   return <section className="market-page-content us-market-page"><div className="market-page-intro"><div><span>US MARKET</span><h2>美股行情</h2><p>矩阵快速浏览，持仓热力图看组合贡献</p></div><div className="us-market-status"><i className={`market-state-dot ${market.state}`} />{market.label}<small>{market.time}</small><button onClick={() => window.location.reload()}>刷新</button></div></div>
     <div className="us-view-switch"><button className={mode === "matrix" ? "active" : ""} onClick={() => setMode("matrix")}>矩阵模式</button><button className={mode === "holdings" ? "active" : ""} onClick={() => setMode("holdings")}>持仓热力图</button></div>
-    {mode === "matrix" ? <><section className="us-subpanel"><div className="subsection-head"><div><h3>热门关注</h3><span>点击查看快速信息</span></div><div className="watch-add"><input value={newSymbol} onChange={(event) => setNewSymbol(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") addWatch(); }} placeholder="Ticker" aria-label="添加美股代码" /><button onClick={addWatch}>+ 添加</button></div></div><USQuoteMatrix symbols={watchlist} quotes={quotes} holdings={holdings} onSelect={setSelectedSymbol} /><div className="watchlist-manage">{watchlist.map((symbol, index) => <span key={symbol}>{symbol}<button onClick={() => moveWatch(index, -1)} aria-label={`${symbol}上移`}>↑</button><button onClick={() => moveWatch(index, 1)} aria-label={`${symbol}下移`}>↓</button><button onClick={() => removeWatch(symbol)} aria-label={`删除${symbol}`}>×</button></span>)}</div></section><section className="us-subpanel"><div className="subsection-head"><div><h3>行业</h3><span>可自定义重点公司列表</span></div><div className="watch-add"><input value={newSymbol} onChange={(event) => setNewSymbol(event.target.value.toUpperCase())} placeholder="添加到行业" aria-label="添加行业股票" /><button onClick={addToSector}>加入 {activeSector}</button></div></div><div className="sector-tabs">{Object.keys(sectorLists).map((sector) => <button key={sector} className={activeSector === sector ? "active" : ""} onClick={() => setActiveSector(sector)}>{sector} <small>{(sectorLists[sector] || []).length}</small></button>)}</div><USQuoteMatrix symbols={currentSectorSymbols} quotes={quotes} holdings={holdings} onSelect={setSelectedSymbol} /></section></> : <section className="us-subpanel"><div className="subsection-head"><div><h3>我的美股持仓</h3><span>面积按持仓市值，颜色按今日涨跌</span></div></div><HoldingsHeatmap holdings={holdings} onSelect={setSelectedSymbol} /></section>}
-    {selectedSymbol && <div className="quick-stock-card"><button className="quick-card-close" onClick={() => setSelectedSymbol(null)}>×</button><div><strong>{selectedQuote?.name || selectedHolding?.name || selectedSymbol}</strong><span>{selectedSymbol}</span></div><div className="quick-card-price"><b>{selectedQuote ? selectedQuote.price.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "—"}</b><em className={quoteTone(selectedQuote?.change ?? selectedHolding?.change ?? 0)}>{(selectedQuote?.change ?? selectedHolding?.change ?? 0) >= 0 ? "+" : ""}{(selectedQuote?.change ?? selectedHolding?.change ?? 0).toFixed(2)}%</em></div>{selectedHolding && <div className="quick-card-holding"><span>持仓市值 ¥{selectedHolding.value.toLocaleString("zh-CN")}</span><span>成本 ¥{selectedHolding.avgCost.toLocaleString("zh-CN")}</span><span>持仓收益 ¥{(selectedHolding.value - selectedHolding.cost).toLocaleString("zh-CN")}</span></div>}</div>}
+    {mode === "matrix" ? <><section className="us-subpanel"><div className="subsection-head"><div><h3>热门关注</h3><span>等尺寸矩阵 · 点击查看快速信息</span></div><div className="watch-add"><input value={watchInput} onChange={(event) => setWatchInput(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") addWatch(); }} placeholder="Ticker / 公司" aria-label="添加美股代码" /><button onClick={addWatch}>+ 添加</button></div></div><USQuoteMatrix symbols={watchlist} quotes={quotes} holdings={holdings} onSelect={setSelectedSymbol} /><div className="watchlist-manage">{watchlist.map((symbol, index) => <span key={symbol}>{symbol}<button onClick={() => moveWatch(index, -1)} aria-label={`${symbol}上移`}>↑</button><button onClick={() => moveWatch(index, 1)} aria-label={`${symbol}下移`}>↓</button><button onClick={() => removeWatch(symbol)} aria-label={`删除${symbol}`}>×</button></span>)}</div></section><section className="us-subpanel"><div className="subsection-head"><div><h3>{activeSector || "行业"}</h3><span>{activeSector ? "重点公司矩阵，可增删自定义" : "点击行业进入重点公司列表"}</span></div>{activeSector && <button className="sector-back" onClick={()=>setActiveSector(null)}>← 返回行业</button>}</div>{!activeSector ? <div className="sector-entry-grid">{Object.keys(sectorLists).map((sector) => <button key={sector} onClick={() => setActiveSector(sector)}><span>{sector}</span><small>{(sectorLists[sector] || []).length} 只重点股票</small><b>›</b></button>)}</div> : <><div className="watch-add sector-add"><input value={sectorInput} onChange={(event) => setSectorInput(event.target.value.toUpperCase())} onKeyDown={(event)=>{ if(event.key === "Enter") addToSector(); }} placeholder="Ticker" aria-label="添加行业股票" /><button onClick={addToSector}>+ 加入 {activeSector}</button></div><USQuoteMatrix symbols={currentSectorSymbols} quotes={quotes} holdings={holdings} onSelect={setSelectedSymbol} /><div className="watchlist-manage sector-manage">{currentSectorSymbols.map((symbol)=><span key={symbol}>{symbol}<button onClick={()=>removeFromSector(symbol)} aria-label={`从${activeSector}删除${symbol}`}>×</button></span>)}</div></>}</section></> : <section className="us-subpanel"><div className="subsection-head"><div><h3>我的美股持仓</h3><span>面积按持仓市值，颜色按今日涨跌</span></div></div><HoldingsHeatmap holdings={holdings} onSelect={setSelectedSymbol} /></section>}
+    {selectedSymbol && <PortfolioQuickCard symbol={selectedSymbol} quote={selectedQuote} holding={selectedHolding} marketCap={marketCap} onClose={()=>setSelectedSymbol(null)} />}
   </section>;
 }
 
@@ -955,21 +1001,21 @@ function CnMarketPanel({ data, loading, expandedByDefault = false }: { data: CnM
   </details>;
 }
 
-function ReturnCalendar({ months, year, onYearChange, mode, onModeChange }: { months:CalendarMonth[]; year:number; onYearChange:(year:number)=>void; mode:"year"|"month"|"day"; onModeChange:(mode:"year"|"month"|"day")=>void }) {
-  const [expandedMonth, setExpandedMonth] = useState<number | null>(new Date().getMonth() + 1);
-  const selected = expandedMonth ? months[expandedMonth - 1] : null;
+function ReturnCalendar({ months, years, year, onYearChange, mode, onModeChange }: { months:CalendarMonth[]; years:CalendarYear[]; year:number; onYearChange:(year:number)=>void; mode:"year"|"month"|"day"; onModeChange:(mode:"year"|"month"|"day")=>void }) {
+  const [expandedMonth, setExpandedMonth] = useState<number>(new Date().getMonth() + 1);
+  const selected = months[expandedMonth - 1] ?? months[0];
   const firstWeekday = selected ? (new Date(year, selected.month - 1, 1).getDay() + 6) % 7 : 0;
   const daysInMonth = selected ? new Date(year, selected.month, 0).getDate() : 0;
   const dayMap = new Map(selected?.days.map((day) => [Number(day.date.slice(-2)), day]) ?? []);
   const cells: Array<{ blank:boolean; key:string; day?:number }> = selected ? [...Array.from({ length:firstWeekday }, (_, index) => ({ blank:true, key:`blank-${index}` })), ...Array.from({ length:daysInMonth }, (_, index) => ({ blank:false, key:`day-${index + 1}`, day:index + 1 }))] : [];
   return <section className="panel return-calendar-panel">
-    <div className="panel-head calendar-head"><div><h2>收益日历</h2><p>已按成本变化校正入金与出金 · 月收益率采用复利</p></div><div className="calendar-controls"><div className="calendar-mode-switch">{([["year","年度"],["month","月度"],["day","每日"]] as const).map(([key,label])=><button key={key} className={mode === key ? "active" : ""} onClick={()=>onModeChange(key)}>{label}</button>)}</div><div className="calendar-year-control"><button onClick={()=>{ onYearChange(year - 1); setExpandedMonth(null); }} aria-label="上一年">‹</button><strong>{year} 年</strong><button onClick={()=>{ onYearChange(year + 1); setExpandedMonth(null); }} aria-label="下一年">›</button></div></div></div>
-    {mode === "year" && <div className="calendar-year-grid">{[year - 3, year - 2, year - 1, year].map((itemYear) => <button key={itemYear} className={`calendar-year-card ${itemYear === year ? "selected" : ""}`} onClick={()=>{ if (itemYear !== year) onYearChange(itemYear); onModeChange("month"); }}><strong>{itemYear}</strong><span>{itemYear === year ? `${months.reduce((sum,item)=>sum + item.profit, 0) >= 0 ? "+" : "-"}¥${Math.abs(months.reduce((sum,item)=>sum + item.profit, 0)).toLocaleString("zh-CN", { maximumFractionDigits: 0 })}` : "暂无快照"}</span><small>{itemYear === year ? "当前年度累计" : "等待历史记录"}</small></button>)}</div>}
-    {mode !== "year" && <div className="year-month-grid">{months.map((month) => {
+    <div className="panel-head calendar-head"><div><h2>收益日历</h2><p>入金和出金已从投资收益中剔除 · 月度与年度收益率按每日收益复利</p></div><div className="calendar-controls"><div className="calendar-mode-switch">{([["year","年度"],["month","月度"],["day","每日"]] as const).map(([key,label])=><button key={key} className={mode === key ? "active" : ""} onClick={()=>onModeChange(key)}>{label}</button>)}</div>{mode !== "year" && <div className="calendar-year-control"><button onClick={()=>onYearChange(year - 1)} aria-label="上一年">‹</button><strong>{year} 年</strong><button onClick={()=>onYearChange(year + 1)} aria-label="下一年">›</button></div>}</div></div>
+    {mode === "year" && <div className="calendar-year-grid">{years.map((item) => { const tone = item.profit > 0 ? "up" : item.profit < 0 ? "down" : "neutral"; return <button key={item.year} className={`calendar-year-card ${item.year === year ? "selected" : ""}`} onClick={()=>{ onYearChange(item.year); onModeChange("month"); }}><strong>{item.year}</strong><span className={tone}>{item.recordedDays ? `${item.profit >= 0 ? "+" : "-"}¥${Math.abs(item.profit).toLocaleString("zh-CN", { maximumFractionDigits: 0 })}` : "—"}</span><small className={tone}>{item.recordedDays ? `${item.rate >= 0 ? "+" : ""}${item.rate.toFixed(2)}% · ${item.recordedDays} 日` : "暂无记录"}</small></button>; })}</div>}
+    {mode === "month" && <div className="year-month-grid">{months.map((month) => {
       const tone = month.profit > 0 ? "up" : month.profit < 0 ? "down" : "neutral";
-      return <button key={month.month} className={`calendar-month-card ${expandedMonth === month.month ? "selected" : ""}`} onClick={()=>{ setExpandedMonth((current)=>current === month.month ? null : month.month); onModeChange("day"); }} aria-expanded={expandedMonth === month.month}><span>{month.month} 月</span><strong className={tone}>{month.recordedDays ? `${month.profit >= 0 ? "+" : "-"}¥${Math.abs(month.profit).toLocaleString("zh-CN", { maximumFractionDigits:2 })}` : "—"}</strong><small className={tone}>{month.recordedDays ? `${month.rate >= 0 ? "+" : ""}${month.rate.toFixed(2)}%` : "暂无记录"}</small></button>;
+      return <button key={month.month} className={`calendar-month-card ${expandedMonth === month.month ? "selected" : ""}`} onClick={()=>{ setExpandedMonth(month.month); onModeChange("day"); }}><span>{month.month} 月</span><strong className={tone}>{month.recordedDays ? `${month.profit >= 0 ? "+" : "-"}¥${Math.abs(month.profit).toLocaleString("zh-CN", { maximumFractionDigits:2 })}` : "—"}</strong><small className={tone}>{month.recordedDays ? `${month.rate >= 0 ? "+" : ""}${month.rate.toFixed(2)}%` : "暂无记录"}</small></button>;
     })}</div>}
-    {selected && <div className="month-calendar-detail">
+    {mode === "day" && selected && <div className="month-calendar-detail"><div className="day-month-selector">{months.map((month)=><button key={month.month} className={expandedMonth === month.month ? "active" : ""} onClick={()=>setExpandedMonth(month.month)}>{month.month}月</button>)}</div>
       <div className="month-summary"><strong>{selected.month} 月</strong><span className={selected.profit >= 0 ? "up" : "down"}>{selected.recordedDays ? `${selected.profit >= 0 ? "+" : "-"}¥${Math.abs(selected.profit).toLocaleString("zh-CN", { maximumFractionDigits:2 })}` : "—"}<small>本月累计收益</small></span><span className={selected.rate >= 0 ? "up" : "down"}>{selected.recordedDays ? `${selected.rate >= 0 ? "+" : ""}${selected.rate.toFixed(2)}%` : "—"}<small>本月收益率</small></span><span>{selected.recordedDays ? `${selected.positiveRatio.toFixed(0)}%` : "—"}<small>盈利日占比</small></span></div>
       <div className="calendar-weekdays">{["周一","周二","周三","周四","周五","周六","周日"].map((day)=><span key={day}>{day}</span>)}</div>
       <div className="calendar-days">{cells.map((cell) => {

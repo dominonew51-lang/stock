@@ -11,6 +11,7 @@ type QuoteResult = {
   asOf: string;
   provider: "东方财富" | "腾讯行情" | "Nasdaq";
   suggestedCategory?: AssetBucket;
+  marketCap?: number;
 };
 
 const requestHeaders = { "User-Agent": "Mozilla/5.0 (compatible; HengcePortfolio/1.0)", Accept: "application/json,text/plain,*/*" };
@@ -102,7 +103,7 @@ async function resolveChineseAsset(symbol: string): Promise<QuoteResult> {
   throw new Error("A 股最新行情暂不可用");
 }
 
-async function resolveUsAsset(symbol: string): Promise<QuoteResult> {
+async function resolveUsAsset(symbol: string, includeDetails = false): Promise<QuoteResult> {
   for (const assetClass of ["stocks", "etf"] as const) {
     try {
       const url = `https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/info?assetclass=${assetClass}`;
@@ -113,7 +114,15 @@ async function resolveUsAsset(symbol: string): Promise<QuoteResult> {
       if (!data?.companyName || !Number.isFinite(price)) continue;
       const change = Number(String(data.primaryData?.percentageChange || "0").replace(/[^0-9.-]/g, "")) || 0;
       const apiName = String(data.companyName);
-      return { symbol, name: symbol, market: "美股", price, currency: "$", change, asOf: String(data.primaryData?.lastTradeTimestamp || ""), provider: "Nasdaq", suggestedCategory: assetClass === "etf" && /QQQ|NASDAQ/i.test(`${symbol} ${apiName}`) ? "美股指数" : "美股" };
+      let marketCap: number | undefined;
+      if (includeDetails && assetClass === "stocks") {
+        try {
+          const summary = await fetchJson<{ data?: { summaryData?: { MarketCap?: { value?: unknown } } } }>(`https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/summary?assetclass=stocks`);
+          const parsed = Number(String(summary.data?.summaryData?.MarketCap?.value || "").replace(/[^0-9.-]/g, ""));
+          if (Number.isFinite(parsed) && parsed > 0) marketCap = parsed;
+        } catch { /* 市值是增强信息，不影响主行情。 */ }
+      }
+      return { symbol, name: apiName, market: "美股", price, currency: "$", change, asOf: String(data.primaryData?.lastTradeTimestamp || ""), provider: "Nasdaq", suggestedCategory: assetClass === "etf" && /QQQ|NASDAQ/i.test(`${symbol} ${apiName}`) ? "美股指数" : "美股", marketCap };
     } catch {
       // 部分证券只存在于其中一种资产类别，继续尝试下一类。
     }
@@ -121,17 +130,19 @@ async function resolveUsAsset(symbol: string): Promise<QuoteResult> {
   throw new Error("未找到该美股或 ETF 代码");
 }
 
-export async function resolveAsset(rawSymbol: string): Promise<QuoteResult> {
+export async function resolveAsset(rawSymbol: string, includeDetails = false): Promise<QuoteResult> {
   const symbol = rawSymbol.trim().toUpperCase();
   if (!symbol) throw new Error("代码不能为空");
-  return /^\d{6}$/.test(symbol) ? resolveChineseAsset(symbol) : resolveUsAsset(symbol);
+  return /^\d{6}$/.test(symbol) ? resolveChineseAsset(symbol) : resolveUsAsset(symbol, includeDetails);
 }
 
 export async function GET(request: Request) {
-  const codes = (new URL(request.url).searchParams.get("codes") || "").split(",").map((code) => code.trim()).filter(Boolean).slice(0, 30);
+  const requestUrl = new URL(request.url);
+  const includeDetails = requestUrl.searchParams.get("details") === "1";
+  const codes = (requestUrl.searchParams.get("codes") || "").split(",").map((code) => code.trim()).filter(Boolean).slice(0, includeDetails ? 1 : 30);
   if (!codes.length) return Response.json({ quotes: {}, errors: {} }, { status: 400 });
   const entries = await Promise.all(codes.map(async (code) => {
-    try { return [code.toUpperCase(), await resolveAsset(code)] as const; }
+    try { return [code.toUpperCase(), await resolveAsset(code, includeDetails)] as const; }
     catch (error) { return [code.toUpperCase(), error instanceof Error ? error.message : "行情查询失败"] as const; }
   }));
   const quotes: Record<string, QuoteResult> = {};

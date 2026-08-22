@@ -886,12 +886,10 @@ export default function Home() {
             {trendMode === "allocation" ? <AllocationContent data={allocationData} totalValue={totalValue} /> : <><div className="chart-legend"><span><i className="legend-value" />{trendView.primary} <b className={selectedTrendMode !== "assets" ? (profit >= 0 ? "up" : "down") : ""}>{trendView.primaryValue}</b></span>{trendView.secondary && <span><i className="legend-cost" />{trendView.secondary} <b>{trendView.secondaryValue}</b></span>}<span className="chart-note">{trendView.note}</span></div><PerformanceChart mode={selectedTrendMode} trend={portfolioTrend} range={range} /></>}
           </article>
         </section>
-        <div className="bento-overview-grid">
-          <section className="panel overview-heatmap-section"><div className="section-inline-head"><div><h2>持仓热力图</h2><p>面积按持仓市值，颜色按今日涨跌；点击查看持仓详情</p></div></div><HoldingsHeatmap holdings={allHoldings} onSelect={setSelectedOverviewSymbol} includeAll /></section>
-          {selectedOverviewHolding && <PortfolioQuickCard symbol={selectedOverviewHolding.symbol} quote={remoteQuotes[selectedOverviewHolding.symbol]} holding={selectedOverviewHolding} onClose={()=>setSelectedOverviewSymbol(null)} />}
-          <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} />
-          <ReturnCalendar months={returnCalendar} years={returnYears} year={calendarYear} onYearChange={setCalendarYear} mode={calendarMode} onModeChange={setCalendarMode} />
-        </div>
+        <section className="panel overview-heatmap-section"><div className="section-inline-head"><div><h2>持仓热力图</h2><p>面积按持仓市值，颜色按今日涨跌；点击查看持仓详情</p></div></div><HoldingsHeatmap holdings={allHoldings} onSelect={setSelectedOverviewSymbol} includeAll /></section>
+        {selectedOverviewHolding && <PortfolioQuickCard symbol={selectedOverviewHolding.symbol} quote={remoteQuotes[selectedOverviewHolding.symbol]} holding={selectedOverviewHolding} onClose={()=>setSelectedOverviewSymbol(null)} />}
+        <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} />
+        <ReturnCalendar months={returnCalendar} years={returnYears} year={calendarYear} onYearChange={setCalendarYear} mode={calendarMode} onModeChange={setCalendarMode} />
       </>}
       {page === "ashare" && <section className="market-page-content"><div className="market-page-intro"><div><span>CHINA MARKET</span><h2>A股行情</h2><p>重要指数与持仓相关市场信息</p></div></div><CnMarketPanel data={cnMarket} loading={cnMarketLoading} expandedByDefault /></section>}
       {page === "us" && <USMarketPage watchlist={usWatchlist} sectorLists={usSectorLists} quotes={usQuotes} holdings={allHoldings} onWatchlistChange={setUsWatchlist} onSectorListsChange={setUsSectorLists} />}

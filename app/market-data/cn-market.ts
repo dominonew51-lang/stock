@@ -213,7 +213,7 @@ export async function resolveCnMarketItem(rawSymbol: string, includeHistory = fa
     try { quote = await fetchListedQuote(symbol, exchange); }
     catch { quote = await fetchTencentFallback(symbol, exchange); }
     if (symbol === "515450") quote.linkedFunds = await fetchLinkedFundDistributions();
-    return includeHistory && quote.instrumentType === "stock" ? fetchHistory(symbol, exchange, quote) : quote;
+    return includeHistory ? fetchHistory(symbol, exchange, quote) : quote;
   }
   return fetchFund(symbol);
 }

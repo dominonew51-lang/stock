@@ -121,6 +121,8 @@ const initialHoldings: Holding[] = [];
 type TrendMode = "return" | "profit" | "assets";
 type PortfolioSnapshot = { date: string; value: number; cost: number; returnRate: number };
 type PortfolioTrend = { dates: string[]; returns: number[]; profits: number[]; costs: number[]; values: number[] };
+type CalendarDay = { date: string; profit: number; rate: number };
+type CalendarMonth = { month: number; profit: number; rate: number; positiveRatio: number; recordedDays: number; days: CalendarDay[] };
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -161,6 +163,31 @@ function buildPortfolioTrend(history: PortfolioSnapshot[], range: string, curren
   };
 }
 
+function buildReturnCalendar(history: PortfolioSnapshot[], year: number, currentValue: number, currentCost: number): CalendarMonth[] {
+  const records = upsertSnapshot(history, {
+    date: localDateKey(),
+    value: currentValue,
+    cost: currentCost,
+    returnRate: currentCost > 0 ? ((currentValue - currentCost) / currentCost) * 100 : 0,
+  });
+  const daily = records.slice(1).map((item, index) => {
+    const previous = records[index];
+    const cashFlow = item.cost - previous.cost;
+    const profit = item.value - previous.value - cashFlow;
+    const rate = previous.value > 0 ? (profit / previous.value) * 100 : 0;
+    return { date:item.date, profit, rate };
+  }).filter((item) => Number(item.date.slice(0, 4)) === year);
+  return Array.from({ length:12 }, (_, index) => {
+    const month = index + 1;
+    const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+    const days = daily.filter((item) => item.date.startsWith(monthKey));
+    const profit = days.reduce((sum, item) => sum + item.profit, 0);
+    const rate = (days.reduce((factor, item) => factor * (1 + item.rate / 100), 1) - 1) * 100;
+    const positiveRatio = days.length ? (days.filter((item) => item.profit > 0).length / days.length) * 100 : 0;
+    return { month, profit, rate, positiveRatio, recordedDays:days.length, days };
+  });
+}
+
 function trendPoints(values: number[], min: number, max: number) {
   const span = Math.max(max - min, Number.EPSILON);
   return values.map((value, index) => ({
@@ -192,19 +219,29 @@ function trendAxisLabel(value: number, mode: TrendMode) {
   return absolute >= 10000 ? `${value < 0 ? "-" : ""}¥${(absolute / 10000).toFixed(0)}万` : `¥${Math.round(value / 1000)}千`;
 }
 
+function chartDomain(values: number[], mode: TrendMode) {
+  const clean = values.filter(Number.isFinite);
+  if (!clean.length) return { min:0, max:mode === "return" ? 1 : 1000 };
+  let rawMin = Math.min(...clean);
+  let rawMax = Math.max(...clean);
+  if (mode === "return" || mode === "profit") {
+    rawMin = Math.min(rawMin, 0);
+    rawMax = Math.max(rawMax, 0);
+  }
+  const rawSpan = rawMax - rawMin;
+  const scale = Math.max(Math.abs(rawMax), Math.abs(rawMin), mode === "return" ? 1 : 1000);
+  const minimumSpan = mode === "return" ? Math.max(1, scale * .15) : Math.max(1000, scale * .06);
+  const span = Math.max(rawSpan, minimumSpan);
+  const midpoint = (rawMax + rawMin) / 2;
+  const padding = span * .1;
+  return { min:midpoint - span / 2 - padding, max:midpoint + span / 2 + padding };
+}
+
 function PerformanceChart({ compact = false, mode = "return", trend, range = "1年" }: { compact?: boolean; mode?: TrendMode; trend: PortfolioTrend; range?: string }) {
   const primary = mode === "return" ? trend.returns : mode === "profit" ? trend.profits : trend.values;
   const secondary = mode === "assets" ? trend.costs : undefined;
   const allValues = (secondary ? [...primary, ...secondary] : primary).filter(Number.isFinite);
-  const rawMin = allValues.length ? Math.min(...allValues) : 0;
-  const rawMax = allValues.length ? Math.max(...allValues) : 1;
-  const observedSpan = rawMax - rawMin;
-  const fallbackSpan = Math.max(Math.abs(rawMax), Math.abs(rawMin), mode === "return" ? 1 : 1000);
-  const padding = observedSpan > 0
-    ? observedSpan * .12
-    : Math.max(fallbackSpan * .02, mode === "return" ? .25 : 500);
-  const min = rawMin - padding;
-  const max = rawMax + padding;
+  const { min, max } = chartDomain(allValues, mode);
   const primaryPath = smoothTrendPath(primary, min, max);
   const secondaryPath = secondary ? smoothTrendPath(secondary, min, max) : undefined;
   const labels = Array.from({length:5}, (_,index)=>trendAxisLabel(max - ((max-min)/4)*index, mode));
@@ -262,6 +299,7 @@ export default function Home() {
   const [profile, setProfile] = useState<Profile>({ name: "", target: "12", risk: "均衡型" });
   const [assetForm, setAssetForm] = useState({ symbol: "", name: "", market: "" as Market | "", category: "美股" as AssetBucket, avgCost: "", quantity: "", holdingDays: "" });
   const [assetLookup, setAssetLookup] = useState<{ state: "idle" | "loading" | "success" | "error"; message: string }>({ state: "idle", message: "" });
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
 
   const quoteCodes = useMemo(() => {
     const symbols = new Set<string>();
@@ -325,7 +363,7 @@ export default function Home() {
     let timer: number | undefined;
     const refresh = () => {
       controller?.abort(); controller = new AbortController(); setCnMarketLoading(true);
-      const url = `/api/cn-market?codes=${encodeURIComponent(todayMarketCodes.join(","))}`;
+      const url = `/api/cn-market?codes=${encodeURIComponent(todayMarketCodes.join(","))}&dividendCodes=${encodeURIComponent(todayMarketCodes.join(","))}`;
       fetch(url, { signal: controller.signal, cache: "no-store" }).then((response) => response.json()).then((payload) => setCnMarket(payload as CnMarketResponse)).catch(() => undefined).finally(() => setCnMarketLoading(false));
     };
     refresh();
@@ -527,6 +565,7 @@ export default function Home() {
   }, [cloudReady, historyReady, totalCost, totalValue]);
 
   const portfolioTrend = useMemo(() => buildPortfolioTrend(portfolioHistory, range, totalValue, totalCost), [portfolioHistory, range, totalCost, totalValue]);
+  const returnCalendar = useMemo(() => buildReturnCalendar(portfolioHistory, calendarYear, totalValue, totalCost), [calendarYear, portfolioHistory, totalCost, totalValue]);
   const monthTrend = useMemo(() => buildPortfolioTrend(portfolioHistory, "1月", totalValue, totalCost), [portfolioHistory, totalCost, totalValue]);
   const latestReturn = portfolioTrend.returns[portfolioTrend.returns.length - 1] || 0;
   const currentMonth = localDateKey().slice(0, 7);
@@ -754,8 +793,7 @@ export default function Home() {
           </div>
         </section>
 
-        <CnMarketPanel data={cnMarket} loading={cnMarketLoading} />
-
+        <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} />
         <section className="dashboard-grid">
           <article className="panel performance-panel">
             <div className="panel-head trend-head"><div><h2>资产走势</h2><p>{trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['profit','收益'],['assets','市值和成本']] as [TrendMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div><div className="segmented">{["1月","3月","6月","1年","全部"].map((item) => <button key={item} className={range === item ? "selected" : ""} onClick={() => setRange(item)}>{item}</button>)}</div></div></div>
@@ -770,7 +808,8 @@ export default function Home() {
             </div>
           </article>
         </section>
-        <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} />
+        <ReturnCalendar months={returnCalendar} year={calendarYear} onYearChange={setCalendarYear} />
+        <CnMarketPanel data={cnMarket} loading={cnMarketLoading} />
     </section>
 
     {showAdd && <Modal title="添加一项持仓" eyebrow="PERSONAL PORTFOLIO" description="输入代码后自动显示全名和市场；持仓总成本由均价 × 数量计算。" onClose={() => setShowAdd(false)}><form className="modal-form" onSubmit={addHolding}><label className="wide">代码<input required value={assetForm.symbol} onChange={(event)=>setAssetForm({...assetForm,symbol:event.target.value,market:"",name:""})} placeholder="021000 / 600036 / AAPL" /><small>停止输入约半秒后自动查询</small></label><div className="resolved-identity wide"><span><small>持仓名称</small><strong>{assetLookup.state === "loading" ? "正在识别…" : assetForm.name || "输入代码后自动显示"}</strong></span><span><small>市场种类</small><strong className={assetForm.market ? `market-${assetForm.market}` : ""}>{assetForm.market || "待识别"}</strong></span></div><input type="hidden" required value={assetForm.name} readOnly /><label className="wide">资产分类（由你选择）<select value={assetForm.category} onChange={(event)=>setAssetForm({...assetForm,category:event.target.value as AssetBucket})}>{assetBuckets.map((item)=><option key={item}>{item}</option>)}</select></label><label>持仓均价（{assetForm.market === "美股" ? "USD" : "CNY"}）<input required type="number" min="0" step="any" value={assetForm.avgCost} onChange={(event)=>setAssetForm({...assetForm,avgCost:event.target.value})} /></label><label>持仓数<input required type="number" min="0.00000001" step="any" value={assetForm.quantity} onChange={(event)=>setAssetForm({...assetForm,quantity:event.target.value})} /></label><div className={`api-form-note wide ${assetLookup.state}`}>{assetLookup.state === "idle" ? "行情来源：东方财富、Nasdaq。" : assetLookup.message}</div><ModalActions onCancel={()=>setShowAdd(false)} label="保存到持仓" /></form></Modal>}
@@ -778,15 +817,63 @@ export default function Home() {
   </main>;
 }
 
+function MarketSparkline({ item }: { item: CnMarketItem }) {
+  const prices = item.intraday?.map((point) => point.price).filter(Number.isFinite) ?? [];
+  if (prices.length < 2) return <div className="market-spark-empty">暂无日内曲线</div>;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const span = Math.max(max - min, Math.abs(max) * .002, .001);
+  const points = prices.map((price, index) => `${(index / (prices.length - 1)) * 100},${38 - ((price - min) / span) * 32}`).join(" ");
+  return <svg className="market-spark" viewBox="0 0 100 42" preserveAspectRatio="none" role="img" aria-label={`${item.name}今日走势`}><line x1="0" x2="100" y1="22" y2="22" /><polyline points={points} className={(item.changePercent ?? 0) >= 0 ? "cn-up-line" : "cn-down-line"} /></svg>;
+}
+
 function CnMarketPanel({ data, loading }: { data: CnMarketResponse | null; loading: boolean }) {
   const items = todayMarketCodes.map((code) => data?.items?.[code]).filter((item): item is CnMarketItem => Boolean(item));
   const stateLabel = data?.marketState === "open" ? "交易中" : data?.marketState === "lunch" ? "午间休市" : data?.marketState === "holiday" ? "休市 / 节假日" : "已收盘";
-  return <section className="panel cn-market-panel">
-    <div className="panel-head cn-market-head"><div><h2>今日行情</h2><p>仅展示 515450、中证红利、科创50</p></div><div className="cn-market-status"><span className={`market-state ${data?.marketState || "closed"}`}>{stateLabel}</span><small>{loading ? "更新中…" : data?.updatedAt ? `更新 ${new Date(data.updatedAt).toLocaleTimeString("zh-CN", { hour:"2-digit", minute:"2-digit" })}` : "等待数据"}</small></div></div>
-    <div className="cn-quote-list fixed-market-list">{items.map((item) => <div className="cn-quote-row" key={item.symbol}><div><strong>{item.name}</strong><small>{item.symbol} · {item.instrumentType === "etf" ? "ETF" : "指数"}</small></div><b>{item.instrumentType === "etf" ? "¥" : ""}{item.price.toLocaleString("zh-CN", { maximumFractionDigits: 3 })}</b><span className={item.changePercent == null ? "muted" : item.changePercent >= 0 ? "cn-up" : "cn-down"}>{item.changePercent == null ? "—" : `${item.changePercent >= 0 ? "+" : ""}${item.changePercent.toFixed(2)}%`}</span>{item.symbol === "515450" && <div className="index-yield"><span>指数股息率</span><strong>{item.indexDividendYieldPercent == null ? "—" : `${item.indexDividendYieldPercent.toFixed(2)}%`}</strong><small>{item.indexDividendYieldAsOf ? `截至 ${item.indexDividendYieldAsOf}` : "等待更新"}</small></div>}</div>)}</div>
-    <div className="yield-explanation"><strong>怎么算？</strong><span>指数股息率 ≈ 过去12个月成分股现金分红 ÷ 成分股总市值。515450 是 ETF，指数股息率不等于 ETF 实际分红率。</span><span>场外联接基金若每月分红：年度分红率 = 过去12个月每份分红合计 ÷ 当前基金单位净值；分红月份相加即可，不要把单月分红直接当成年化收益。</span></div>
-    {data?.items?.["515450"]?.linkedFunds?.length ? <div className="linked-fund-distributions"><div className="subsection-head"><h3>515450 场外联接基金分红</h3><span>按当前单位净值计算 · 元/份</span></div><p className="distribution-note">官方公告常按“每10份”披露，页面已除以10换算为“每1份”；A、C、I 是不同份额类别，不能混加。日期按净值分红记录日展示。</p><div className="linked-fund-grid">{data.items["515450"].linkedFunds.map((fund) => <article key={fund.code} className="linked-fund-card"><div className="linked-fund-title"><strong>{fund.name}</strong><small>{fund.code} · 净值 {fund.nav.toFixed(4)}（{fund.navDate}）</small></div><div className="linked-fund-rates"><span><b>近12个月</b><strong>{fund.annualRate.toFixed(2)}%</strong></span><span><b>近半年</b><strong>{fund.halfYearRate.toFixed(2)}%</strong></span><span><b>近季度</b><strong>{fund.quarterRate.toFixed(2)}%</strong></span></div><div className="monthly-distributions">{fund.monthly.map((item) => <span key={item.month}><b>{item.month.slice(5)}月</b><em>¥{item.perShare.toFixed(4)}/份</em><small>{item.date ? item.date.slice(5) : "—"} · {item.rate.toFixed(2)}%</small></span>)}</div></article>)}</div></div> : null}
-    {!items.length && !loading && <p className="cn-market-note">行情暂时未返回，请稍后再刷新页面。</p>}
+  const fund = data?.items?.["515450"];
+  return <details className="panel cn-market-panel collapsible-market">
+    <summary className="market-master-summary"><div><h2>当前实时行情</h2><p>515450、中证红利、科创50 · 按需展开</p></div><div className="cn-market-status"><span className={`market-state ${data?.marketState || "closed"}`}>{stateLabel}</span><small>{loading ? "更新中…" : data?.updatedAt ? `更新 ${new Date(data.updatedAt).toLocaleTimeString("zh-CN", { hour:"2-digit", minute:"2-digit" })}` : "等待数据"}</small></div><span className="collapse-chevron" aria-hidden="true">⌄</span></summary>
+    <div className="market-collapsible-body">
+      <details className="market-subsection">
+        <summary><span><strong>南方红利低波 / 分红信息</strong><small>指数股息率、场外联接基金分红率</small></span><i aria-hidden="true">⌄</i></summary>
+        <div className="market-subsection-content">
+          <div className="index-yield dividend-yield-row"><span>515450 指数股息率</span><strong>{fund?.indexDividendYieldPercent == null ? "—" : `${fund.indexDividendYieldPercent.toFixed(2)}%`}</strong><small>{fund?.indexDividendYieldAsOf ? `截至 ${fund.indexDividendYieldAsOf}` : "等待更新"}</small></div>
+          <div className="yield-explanation"><strong>怎么算？</strong><span>指数股息率 ≈ 过去12个月成分股现金分红 ÷ 成分股总市值。515450 是 ETF，指数股息率不等于 ETF 实际分红率。</span><span>场外联接基金年度分红率 = 过去12个月每份分红合计 ÷ 当前单位净值；A、C、I 份额分别计算，不能混加。</span></div>
+          {fund?.linkedFunds?.length ? <div className="linked-fund-distributions"><div className="subsection-head"><h3>515450 场外联接基金分红</h3><span>按当前单位净值计算 · 元/份</span></div><p className="distribution-note">官方公告常按“每10份”披露，页面已除以10换算为“每1份”；日期按净值分红记录日展示。</p><div className="linked-fund-grid">{fund.linkedFunds.map((linkedFund) => <article key={linkedFund.code} className="linked-fund-card"><div className="linked-fund-title"><strong>{linkedFund.name}</strong><small>{linkedFund.code} · 净值 {linkedFund.nav.toFixed(4)}（{linkedFund.navDate}）</small></div><div className="linked-fund-rates"><span><b>近12个月</b><strong>{linkedFund.annualRate.toFixed(2)}%</strong></span><span><b>近半年</b><strong>{linkedFund.halfYearRate.toFixed(2)}%</strong></span><span><b>近季度</b><strong>{linkedFund.quarterRate.toFixed(2)}%</strong></span></div><div className="monthly-distributions">{linkedFund.monthly.map((item) => <span key={item.month}><b>{item.month.slice(5)}月</b><em>¥{item.perShare.toFixed(4)}/份</em><small>{item.date ? item.date.slice(5) : "—"} · {item.rate.toFixed(2)}%</small></span>)}</div></article>)}</div></div> : null}
+        </div>
+      </details>
+      <details className="market-subsection">
+        <summary><span><strong>今日行情走势</strong><small>3 个核心标的的价格与日内曲线</small></span><i aria-hidden="true">⌄</i></summary>
+        <div className="market-subsection-content"><div className="market-chart-grid">{items.map((item) => <article className="market-chart-card" key={item.symbol}><div className="market-chart-title"><span><strong>{item.name}</strong><small>{item.symbol} · {item.instrumentType === "etf" ? "ETF" : "指数"}</small></span><span><b>{item.instrumentType === "etf" ? "¥" : ""}{item.price.toLocaleString("zh-CN", { maximumFractionDigits:3 })}</b><em className={item.changePercent == null ? "muted" : item.changePercent >= 0 ? "cn-up" : "cn-down"}>{item.changePercent == null ? "—" : `${item.changePercent >= 0 ? "+" : ""}${item.changePercent.toFixed(2)}%`}</em></span></div><MarketSparkline item={item} /></article>)}</div>{!items.length && !loading && <p className="cn-market-note">行情暂时未返回，请稍后刷新。</p>}</div>
+      </details>
+    </div>
+  </details>;
+}
+
+function ReturnCalendar({ months, year, onYearChange }: { months:CalendarMonth[]; year:number; onYearChange:(year:number)=>void }) {
+  const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
+  const selected = expandedMonth ? months[expandedMonth - 1] : null;
+  const firstWeekday = selected ? (new Date(year, selected.month - 1, 1).getDay() + 6) % 7 : 0;
+  const daysInMonth = selected ? new Date(year, selected.month, 0).getDate() : 0;
+  const dayMap = new Map(selected?.days.map((day) => [Number(day.date.slice(-2)), day]) ?? []);
+  const cells: Array<{ blank:boolean; key:string; day?:number }> = selected ? [...Array.from({ length:firstWeekday }, (_, index) => ({ blank:true, key:`blank-${index}` })), ...Array.from({ length:daysInMonth }, (_, index) => ({ blank:false, key:`day-${index + 1}`, day:index + 1 }))] : [];
+  return <section className="panel return-calendar-panel">
+    <div className="panel-head calendar-head"><div><h2>收益日历</h2><p>已按成本变化校正入金与出金 · 月收益率采用复利</p></div><div className="calendar-year-control"><button onClick={()=>{ onYearChange(year - 1); setExpandedMonth(null); }} aria-label="上一年">‹</button><strong>{year} 年</strong><button onClick={()=>{ onYearChange(year + 1); setExpandedMonth(null); }} aria-label="下一年">›</button></div></div>
+    <div className="year-month-grid">{months.map((month) => {
+      const tone = month.profit > 0 ? "up" : month.profit < 0 ? "down" : "neutral";
+      return <button key={month.month} className={`calendar-month-card ${expandedMonth === month.month ? "selected" : ""}`} onClick={()=>setExpandedMonth((current)=>current === month.month ? null : month.month)} aria-expanded={expandedMonth === month.month}><span>{month.month} 月</span><strong className={tone}>{month.recordedDays ? `${month.profit >= 0 ? "+" : "-"}¥${Math.abs(month.profit).toLocaleString("zh-CN", { maximumFractionDigits:2 })}` : "—"}</strong><small className={tone}>{month.recordedDays ? `${month.rate >= 0 ? "+" : ""}${month.rate.toFixed(2)}%` : "暂无记录"}</small></button>;
+    })}</div>
+    {selected && <div className="month-calendar-detail">
+      <div className="month-summary"><strong>{selected.month} 月</strong><span className={selected.profit >= 0 ? "up" : "down"}>{selected.recordedDays ? `${selected.profit >= 0 ? "+" : "-"}¥${Math.abs(selected.profit).toLocaleString("zh-CN", { maximumFractionDigits:2 })}` : "—"}<small>本月累计收益</small></span><span className={selected.rate >= 0 ? "up" : "down"}>{selected.recordedDays ? `${selected.rate >= 0 ? "+" : ""}${selected.rate.toFixed(2)}%` : "—"}<small>本月收益率</small></span><span>{selected.recordedDays ? `${selected.positiveRatio.toFixed(0)}%` : "—"}<small>盈利日占比</small></span></div>
+      <div className="calendar-weekdays">{["周一","周二","周三","周四","周五","周六","周日"].map((day)=><span key={day}>{day}</span>)}</div>
+      <div className="calendar-days">{cells.map((cell) => {
+        if (cell.blank) return <span className="calendar-day blank" key={cell.key} />;
+        const record = dayMap.get(cell.day!);
+        const weekday = (firstWeekday + cell.day! - 1) % 7;
+        const tone = record ? record.profit > 0 ? "up" : record.profit < 0 ? "down" : "neutral" : "muted";
+        return <span className={`calendar-day ${!record || weekday > 4 ? "inactive" : ""}`} key={cell.key}><b>{cell.day}</b>{record && <><strong className={tone}>{record.profit >= 0 ? "+" : "-"}¥{Math.abs(record.profit).toLocaleString("zh-CN", { maximumFractionDigits:2 })}</strong><small className={tone}>{record.rate >= 0 ? "+" : ""}{record.rate.toFixed(2)}%</small></>}</span>;
+      })}</div>
+    </div>}
   </section>;
 }
 
@@ -869,8 +956,9 @@ function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErr
       <div className="holdings-actions"><span className="quote-status"><i className="status-dot" />行情每 20 秒刷新 · 已更新 {Object.keys(quotes).length} 项</span><select className="bucket-filter" value={filter} onChange={(event)=>setFilter(event.target.value as "全部" | AssetBucket)} aria-label="按资产分类筛选"><option value="全部">全部分类</option>{assetBuckets.map((item)=><option key={item}>{item}</option>)}</select><span className="sort-controls"><select value={sortKey} onChange={(event)=>setSortKey(event.target.value as typeof sortKey)} aria-label="持仓排序方式"><option value="default">默认排序</option><option value="return">按收益率</option><option value="profit">按绝对收益</option><option value="value">按持仓市值</option></select><button onClick={()=>setSortDirection((current)=>current === "desc" ? "asc" : "desc")} disabled={sortKey === "default"} aria-label="切换排序方向">{sortDirection === "desc" ? "↓" : "↑"}</button></span>{editing ? <span className="edit-mode-actions"><button onClick={cancelEdit}>取消</button><button onClick={()=>void saveAll()}>保存全部</button></span> : <button className="portfolio-edit-toggle" onClick={beginEdit}>✎ 编辑持仓</button>}</div>
     </div>
     {editError && <div className="portfolio-edit-error">{editError}</div>}
+    {!editing && <div className="mobile-holding-header"><span>持仓</span><span>收益率</span><span>今日涨跌</span></div>}
     <div className="holding-table">
-      <div className="holding-row holding-header">{editing ? <><span>资产信息</span><span>持仓数据</span><span>实时结果</span></> : <><span>资产</span><span>持仓（市值）</span><span>累计盈亏</span><span>股价</span></>}</div>
+      <div className="holding-row holding-header">{editing ? <><span>资产信息</span><span>持仓数据</span><span>实时结果</span></> : <><span>资产</span><span>持仓（市值）</span><span>收益率</span><span>股价</span></>}</div>
       {editing ? <>{sortedHoldings.map((item)=>editableRow(drafts[item.symbol] ?? item, item.symbol))}{editableRow(newDraft, "__new__", true)}</> : sortedHoldings.map((item)=>{
         const hasQuote = item.quoteSource !== "unavailable";
         const returnRate = item.cost > 0 ? ((item.value-item.cost)/item.cost)*100 : 0;
@@ -880,8 +968,8 @@ function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErr
           <button type="button" className={`holding-row holding-row-toggle ${toneClass}`} onClick={()=>toggleExpanded(item.symbol)} aria-expanded={expanded} aria-controls={`holding-details-${item.symbol}`}>
             <span className="asset-cell asset-open"><span><strong>{item.name}</strong><small>{item.symbol} · {item.market}</small></span></span>
             <span className="position-value"><strong>{hasQuote ? `¥${item.value.toLocaleString("zh-CN")}` : "—"}</strong><small>{item.category}</small></span>
-            <span className={`cumulative-profit ${hasQuote ? (returnRate>=0?"up":"down") : ""}`}><span className="mobile-metric-label">收益率</span><strong>{hasQuote ? `${returnRate>=0?"+":""}${returnRate.toFixed(2)}%` : "—"}</strong><small>{hasQuote ? `${item.value>=item.cost?"+":""}¥${(item.value-item.cost).toLocaleString("zh-CN")}` : "等待行情"}</small></span>
-            <span className="market-price-cell"><span className="mobile-metric-label">今日</span><strong className={item.change >= 0 ? "up" : "down"}>{hasQuote ? `${item.currency}${item.price.toLocaleString("zh-CN")}` : "—"}</strong><small className={item.change >= 0 ? "up" : "down"}>{hasQuote ? `${item.change >= 0 ? "+" : ""}${item.change.toFixed(2)}%` : quoteErrors[item.symbol] || "等待行情"}</small></span>
+            <span className={`cumulative-profit ${hasQuote ? (returnRate>=0?"up":"down") : ""}`}><strong>{hasQuote ? `${returnRate>=0?"+":""}${returnRate.toFixed(2)}%` : "—"}</strong><small>{hasQuote ? `${item.value>=item.cost?"+":""}¥${(item.value-item.cost).toLocaleString("zh-CN")}` : "等待行情"}</small></span>
+            <span className="market-price-cell"><strong>{hasQuote ? `${item.currency}${item.price.toLocaleString("zh-CN")}` : "—"}</strong><small className={item.change >= 0 ? "up" : "down"}>{hasQuote ? `${item.change >= 0 ? "+" : ""}${item.change.toFixed(2)}%` : quoteErrors[item.symbol] || "等待行情"}</small></span>
           </button>
           {expanded && <div className="holding-details" id={`holding-details-${item.symbol}`}><div><span>资产分类</span><strong>{item.category}</strong></div><div><span>持仓市值</span><strong>{hasQuote ? `¥${item.value.toLocaleString("zh-CN")}` : "—"}</strong></div><div><span>累计收益</span><strong className={hasQuote ? (returnRate>=0?"up":"down") : ""}>{hasQuote ? `${item.value>=item.cost?"+":""}¥${(item.value-item.cost).toLocaleString("zh-CN")}` : "—"}</strong></div><div><span>当前价格</span><strong>{hasQuote ? `${item.currency}${item.price.toLocaleString("zh-CN")}` : "—"}</strong></div><div><span>持仓均价</span><strong>{item.currency}{item.avgCost.toLocaleString("zh-CN", {maximumFractionDigits:6})}</strong></div><div><span>总成本</span><strong>¥{item.cost.toLocaleString("zh-CN")}</strong></div><div><span>持仓数量</span><strong>{item.quantity.toLocaleString("zh-CN")} {item.market === "基金" ? "份" : "股"}</strong></div></div>}
         </div>;

@@ -121,7 +121,7 @@ async function resolveUsAsset(symbol: string): Promise<QuoteResult> {
   throw new Error("未找到该美股或 ETF 代码");
 }
 
-async function resolveAsset(rawSymbol: string): Promise<QuoteResult> {
+export async function resolveAsset(rawSymbol: string): Promise<QuoteResult> {
   const symbol = rawSymbol.trim().toUpperCase();
   if (!symbol) throw new Error("代码不能为空");
   return /^\d{6}$/.test(symbol) ? resolveChineseAsset(symbol) : resolveUsAsset(symbol);

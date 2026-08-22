@@ -1459,6 +1459,175 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   .overview-only .cumulative-profit strong { font-size:13px!important; }
 }
 
+/* High-density holdings, return calendar and collapsible market */
+.mobile-holding-header { display:none; }
+.overview-only .holding-row.holding-row-toggle {
+  min-height:48px;
+  padding-top:6px;
+  padding-bottom:6px;
+}
+.overview-only .holding-row.holding-header { min-height:32px; padding-top:5px; padding-bottom:5px; }
+.holding-entry + .holding-entry { border-top:1px solid #ededeb; }
+
+.return-calendar-panel { margin-top:16px; padding:20px; }
+.calendar-head { align-items:center; }
+.calendar-year-control { display:flex; align-items:center; gap:5px; }
+.calendar-year-control button {
+  width:32px;
+  height:32px;
+  border:1px solid #deddd9;
+  border-radius:6px;
+  color:#595853;
+  background:#fff;
+  font-size:20px;
+  cursor:pointer;
+}
+.calendar-year-control strong { min-width:72px; text-align:center; font-size:14px; }
+.year-month-grid { margin-top:17px; display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }
+.calendar-month-card {
+  min-width:0;
+  padding:11px 10px;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  border:1px solid #e3e2df;
+  border-radius:7px;
+  color:#37352f;
+  background:#fff;
+  text-align:left;
+  cursor:pointer;
+}
+.calendar-month-card:hover,.calendar-month-card.selected { border-color:#9f9e99; background:#f7f6f3; }
+.calendar-month-card span { color:#787774; font-size:11px; font-weight:650; }
+.calendar-month-card strong { overflow:hidden; font:700 13px/1.2 var(--font-geist-mono); text-overflow:ellipsis; white-space:nowrap; }
+.calendar-month-card small { font-size:10px; font-weight:700; }
+.neutral { color:#8d8c88!important; }
+.month-calendar-detail { margin-top:14px; padding-top:14px; border-top:1px solid #ededeb; }
+.month-summary {
+  padding:10px 12px;
+  display:grid;
+  grid-template-columns:auto repeat(3,minmax(0,1fr));
+  gap:12px;
+  align-items:center;
+  border-radius:7px;
+  background:#f7f6f3;
+}
+.month-summary > strong { font-size:15px; }
+.month-summary > span { display:flex; flex-direction:column; gap:3px; font:750 13px var(--font-geist-mono); }
+.month-summary small { color:#8d8c88; font:500 9px var(--font-geist-sans); }
+.calendar-weekdays,.calendar-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
+.calendar-weekdays { margin-top:11px; }
+.calendar-weekdays span { padding:7px 4px; color:#9b9a97; font-size:10px; text-align:center; }
+.calendar-days { gap:4px; }
+.calendar-day {
+  min-width:0;
+  min-height:70px;
+  padding:7px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  border:1px solid #ededeb;
+  border-radius:6px;
+  background:#fff;
+}
+.calendar-day > b { color:#595853; font-size:10px; }
+.calendar-day > strong { overflow:hidden; font:700 11px var(--font-geist-mono); text-overflow:ellipsis; white-space:nowrap; }
+.calendar-day > small { font:650 9px var(--font-geist-mono); }
+.calendar-day.inactive { color:#aaa9a5; background:#fafafa; }
+.calendar-day.blank { border-color:transparent; background:transparent; }
+
+.collapsible-market { margin-top:16px; overflow:hidden; }
+.market-master-summary,.market-subsection > summary {
+  list-style:none;
+  cursor:pointer;
+  user-select:none;
+}
+.market-master-summary::-webkit-details-marker,.market-subsection > summary::-webkit-details-marker { display:none; }
+.market-master-summary {
+  min-height:68px;
+  padding:15px 20px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto 22px;
+  gap:14px;
+  align-items:center;
+}
+.market-master-summary h2 { margin:0; color:#37352f; font-size:18px; }
+.market-master-summary p { margin:4px 0 0; color:#8d8c88; font-size:11px; }
+.collapse-chevron,.market-subsection summary i { color:#8d8c88; font-style:normal; font-size:18px; transition:transform .18s ease; }
+.collapsible-market[open] > .market-master-summary .collapse-chevron,.market-subsection[open] > summary i { transform:rotate(180deg); }
+.market-collapsible-body { padding:0 20px 18px; border-top:1px solid #ededeb; }
+.market-subsection { border-bottom:1px solid #ededeb; }
+.market-subsection > summary { min-height:58px; padding:11px 2px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.market-subsection > summary span { display:flex; flex-direction:column; gap:4px; }
+.market-subsection > summary strong { font-size:13px; }
+.market-subsection > summary small { color:#8d8c88; font-size:10px; }
+.market-subsection-content { padding:2px 0 16px; }
+.dividend-yield-row { grid-column:auto; padding:10px 0; }
+.market-chart-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.market-chart-card { min-width:0; padding:12px; border:1px solid #e3e2df; border-radius:7px; background:#fff; }
+.market-chart-title { display:flex; justify-content:space-between; gap:9px; }
+.market-chart-title > span { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.market-chart-title > span:last-child { flex:0 0 auto; align-items:flex-end; }
+.market-chart-title strong { overflow:hidden; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.market-chart-title small { color:#8d8c88; font-size:9px; }
+.market-chart-title b { font:700 12px var(--font-geist-mono); }
+.market-chart-title em { font-size:10px; font-style:normal; }
+.market-spark { width:100%; height:72px; margin-top:8px; overflow:visible; }
+.market-spark line { stroke:#ededeb; stroke-width:1; vector-effect:non-scaling-stroke; }
+.market-spark polyline { fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.cn-up-line { stroke:#c43d3d; }
+.cn-down-line { stroke:#2f7d4a; }
+.market-spark-empty { height:72px; margin-top:8px; display:grid; place-items:center; color:#aaa9a5; background:#fafafa; font-size:10px; }
+
+@media(max-width:900px){
+  .year-month-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .market-chart-grid { grid-template-columns:1fr; }
+}
+
+@media(max-width:780px){
+  .mobile-holding-header {
+    padding:0 11px 5px;
+    display:grid;
+    grid-template-columns:minmax(0,1.45fr) minmax(70px,.72fr) minmax(64px,.62fr);
+    gap:7px;
+    color:#8d8c88;
+    font-size:9px;
+    font-weight:650;
+  }
+  .mobile-holding-header span:nth-child(n+2) { text-align:right; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-table { gap:4px; }
+  .overview-only .holdings-panel:not(.holdings-edit-mode) .holding-row.holding-row-toggle {
+    min-height:52px;
+    padding:6px 10px;
+  }
+  .holdings-panel:not(.holdings-edit-mode) .asset-cell strong { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+  .return-calendar-panel { padding:16px 12px; }
+  .calendar-head { align-items:flex-start; gap:12px; }
+  .year-month-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+  .calendar-month-card { padding:9px 8px; }
+  .month-summary { grid-template-columns:1fr 1fr; gap:9px; }
+  .month-summary > strong { grid-column:1/-1; }
+  .calendar-day { min-height:58px; padding:5px 3px; gap:3px; }
+  .calendar-day > strong { font-size:9px; }
+  .calendar-day > small { font-size:8px; }
+  .market-master-summary { min-height:60px; padding:12px 14px; grid-template-columns:minmax(0,1fr) 20px; }
+  .market-master-summary .cn-market-status { display:none; }
+  .market-collapsible-body { padding:0 14px 14px; }
+}
+
+@media(max-width:420px){
+  .year-month-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .calendar-weekdays span { padding:6px 1px; font-size:9px; }
+  .calendar-days { gap:2px; }
+  .calendar-day { min-height:55px; }
+  .calendar-day > strong { font-size:8px; }
+  .calendar-day > small { font-size:7px; }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .collapse-chevron,.market-subsection summary i { transition:none; }
+}
+
 /* Phone layout refinements */
 @media(max-width:780px){
   .overview-only .panel,.overview-only .summary-card { max-width:100%; overflow:hidden; }
@@ -1649,4 +1818,27 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   .holdings-panel:not(.holdings-edit-mode) .asset-cell strong { font-size:13px!important; }
   .holdings-panel:not(.holdings-edit-mode) .cumulative-profit strong,
   .holdings-panel:not(.holdings-edit-mode) .market-price-cell > small { font-size:12px!important; }
+}
+
+/* Final mobile density overrides */
+@media(max-width:780px){
+  .overview-only .cn-market-panel { padding:0; }
+  .overview-only .holdings-panel:not(.holdings-edit-mode) .holding-row.holding-row-toggle {
+    min-height:52px;
+    padding:6px 10px;
+  }
+  .holdings-panel:not(.holdings-edit-mode) .holding-table { gap:4px; }
+  .holdings-panel:not(.holdings-edit-mode) .asset-cell strong {
+    white-space:nowrap;
+    text-overflow:ellipsis;
+    overflow:hidden;
+  }
+  .mobile-metric-label { display:none; }
+}
+
+@media(max-width:360px){
+  .overview-only .holdings-panel:not(.holdings-edit-mode) .holding-row.holding-row-toggle {
+    min-height:50px;
+    padding:5px 8px;
+  }
 }

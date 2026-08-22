@@ -29,12 +29,14 @@ export async function PUT(request: Request) {
   const userId = await resolvePortfolioUserId(request);
   if (!userId) return Response.json({ error: "此设备尚未获得访问权限" }, { status: 401 });
   try {
-    const payload = await request.json() as { holdings?: unknown; profile?: unknown; useDemoHoldings?: unknown; longTermStart?: unknown };
+    const payload = await request.json() as { holdings?: unknown; profile?: unknown; useDemoHoldings?: unknown; longTermStart?: unknown; usWatchlist?: unknown; usSectorLists?: unknown };
     const state = {
       holdings: Array.isArray(payload.holdings) ? payload.holdings.slice(0, 500) : [],
       profile: payload.profile && typeof payload.profile === "object" ? payload.profile : {},
       useDemoHoldings: Boolean(payload.useDemoHoldings),
       longTermStart: typeof payload.longTermStart === "string" ? payload.longTermStart : "",
+      usWatchlist: Array.isArray(payload.usWatchlist) ? payload.usWatchlist.slice(0, 100).map((item) => String(item).trim().toUpperCase()).filter(Boolean) : [],
+      usSectorLists: payload.usSectorLists && typeof payload.usSectorLists === "object" ? payload.usSectorLists : {},
     };
     const stateJson = JSON.stringify(state);
     if (stateJson.length > 1_500_000) return Response.json({ error: "持仓数据过大" }, { status: 413 });

@@ -1459,6 +1459,49 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   .overview-only .cumulative-profit strong { font-size:13px!important; }
 }
 
+/* v2 navigation, unified analysis and market pages */
+.page-kicker { margin-left:10px; color:#8a8882; font-size:11px; letter-spacing:.12em; font-weight:700; }
+.analysis-panel { grid-column:1 / -1; }
+.allocation-inline-layout { display:grid; grid-template-columns:minmax(220px,.85fr) minmax(0,1fr); gap:22px; align-items:center; }
+.allocation-inline-layout .allocation-chart { width:min(260px,100%); margin:auto; }
+.calendar-controls { display:flex; align-items:center; gap:14px; }
+.calendar-mode-switch, .us-view-switch { display:flex; gap:4px; padding:3px; border:1px solid var(--line,#e6e3dd); background:#f7f6f2; border-radius:10px; }
+.calendar-mode-switch button, .us-view-switch button { border:0; background:transparent; color:#77746e; padding:7px 10px; border-radius:7px; font:inherit; font-size:12px; cursor:pointer; }
+.calendar-mode-switch button.active, .us-view-switch button.active { background:#252421; color:#fff; }
+.calendar-year-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.calendar-year-card { border:1px solid var(--line,#e6e3dd); background:#fff; text-align:left; padding:14px; border-radius:10px; cursor:pointer; display:grid; gap:5px; }
+.calendar-year-card.selected { border-color:#252421; box-shadow:3px 3px 0 #252421; }
+.calendar-year-card strong { font-size:18px; }
+.calendar-year-card span { color:#b33b3b; font-weight:750; }
+.calendar-year-card small { color:#8a8882; }
+.market-page-content { display:grid; gap:16px; padding-bottom:80px; }
+.market-page-intro { display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid var(--line,#e6e3dd); padding:8px 0 16px; }
+.market-page-intro > div:first-child > span { font-size:10px; letter-spacing:.16em; color:#9a978f; font-weight:700; }
+.market-page-intro h2 { margin:5px 0 0; font-size:28px; letter-spacing:-.04em; }
+.market-page-intro p { margin:5px 0 0; color:#85827b; font-size:12px; }
+.us-market-status { display:flex; align-items:center; gap:8px; color:#57544e; font-size:12px; }
+.us-market-status small { color:#99958c; }
+.us-market-status button { border:1px solid var(--line,#e6e3dd); background:#fff; padding:6px 9px; border-radius:7px; cursor:pointer; }
+.market-state-dot { width:7px; height:7px; border-radius:50%; background:#aaa; }
+.market-state-dot.open { background:#bd3f3f; }.market-state-dot.pre,.market-state-dot.after { background:#b48328; }
+.us-subpanel { border:1px solid var(--line,#e6e3dd); background:#fff; padding:16px; border-radius:12px; }
+.subsection-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+.subsection-head h3 { margin:0; font-size:16px; }.subsection-head span { color:#929087; font-size:11px; }
+.watch-add { display:flex; gap:6px; }.watch-add input { width:100px; border:1px solid var(--line,#ddd9d1); border-radius:7px; padding:7px 8px; font:inherit; font-size:12px; }.watch-add button { border:1px solid #252421; background:#252421; color:#fff; border-radius:7px; padding:7px 9px; font-size:12px; cursor:pointer; }
+.us-quote-matrix { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.us-quote-tile { border:1px solid transparent; min-height:78px; border-radius:8px; color:#fff; display:grid; align-content:center; justify-items:start; gap:3px; padding:11px; text-align:left; cursor:pointer; }
+.us-quote-tile.up { background:#c64e4e; }.us-quote-tile.down { background:#4c8b62; }.us-quote-tile strong { font-size:14px; }.us-quote-tile span { font-size:12px; opacity:.88; }.us-quote-tile b { font-size:13px; }
+.watchlist-manage { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }.watchlist-manage span { display:inline-flex; align-items:center; gap:4px; background:#f5f4f0; border:1px solid #e3e0d9; border-radius:6px; padding:3px 5px 3px 8px; font-size:11px; }.watchlist-manage button { border:0; background:transparent; cursor:pointer; color:#78756e; padding:1px 2px; }
+.sector-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }.sector-tabs button { border:1px solid #e2dfd8; background:#faf9f6; border-radius:7px; padding:7px 10px; color:#65625b; cursor:pointer; }.sector-tabs button.active { background:#252421; color:#fff; }.sector-tabs small { opacity:.65; }
+.portfolio-treemap { display:flex; flex-wrap:wrap; gap:4px; min-height:150px; }.treemap-tile { min-width:100px; min-height:74px; flex-basis:120px; border:0; border-radius:7px; color:#fff; padding:10px; display:grid; justify-items:start; align-content:center; gap:3px; text-align:left; cursor:pointer; }.treemap-tile strong { font-size:15px; }.treemap-tile span { font-weight:800; }.treemap-tile small { opacity:.82; font-size:10px; }
+.quick-stock-card { position:relative; display:grid; grid-template-columns:1.3fr 1fr; gap:10px; border:1px solid #252421; background:#fff; box-shadow:4px 4px 0 #252421; padding:14px; border-radius:10px; }.quick-card-close { position:absolute; top:6px; right:8px; border:0; background:transparent; font-size:20px; cursor:pointer; }.quick-stock-card > div:first-of-type { display:grid; gap:3px; }.quick-stock-card > div:first-of-type span { color:#88857d; font-size:11px; }.quick-card-price { display:grid; justify-items:end; gap:3px; }.quick-card-price b { font-size:20px; }.quick-card-price em { font-style:normal; font-weight:750; }.quick-card-holding { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:14px; color:#6e6b64; font-size:12px; padding-top:6px; border-top:1px solid #ebe8e1; }
+.bottom-nav { position:fixed; z-index:20; left:50%; bottom:14px; transform:translateX(-50%); display:flex; gap:4px; padding:5px; background:#252421; border:1px solid #252421; border-radius:12px; box-shadow:0 8px 22px rgba(37,36,33,.16); }
+.bottom-nav button { border:0; background:transparent; color:#b9b7b1; border-radius:8px; padding:8px 16px; min-width:82px; cursor:pointer; display:grid; gap:2px; }.bottom-nav button.active { background:#fff; color:#252421; }.bottom-nav strong { font-size:13px; }.bottom-nav span { font-size:10px; }
+@media(max-width:780px){
+ .page-kicker { display:none; }.calendar-controls { flex-direction:column-reverse; align-items:flex-end; gap:8px; }.calendar-mode-switch button { padding:6px 8px; }.calendar-year-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.allocation-inline-layout { grid-template-columns:1fr; }.allocation-inline-layout .allocation-chart { width:210px; }
+ .market-page-intro { align-items:flex-start; gap:12px; }.market-page-intro h2 { font-size:24px; }.us-market-status { flex-wrap:wrap; justify-content:flex-end; max-width:150px; }.us-quote-matrix { grid-template-columns:repeat(2,minmax(0,1fr)); }.us-subpanel { padding:12px; }.subsection-head { align-items:flex-start; flex-direction:column; }.watch-add { width:100%; }.watch-add input { flex:1; width:auto; }.bottom-nav { bottom:8px; width:calc(100% - 24px); justify-content:space-around; }.bottom-nav button { min-width:0; flex:1; padding:8px 6px; }.market-page-content { padding-bottom:76px; }
+}
+
 /* High-density holdings, return calendar and collapsible market */
 .mobile-holding-header { display:none; }
 .overview-only .holding-row.holding-row-toggle {

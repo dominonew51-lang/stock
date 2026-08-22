@@ -14,7 +14,7 @@ type Holding = {
   quoteSource?: "api" | "demo" | "unavailable"; quoteProvider?: string; quoteAsOf?: string; sourceSymbol?: string;
 };
 type Profile = { name: string; target: string; risk: string };
-type CloudPortfolioState = { holdings: Holding[]; profile: Profile; useDemoHoldings: boolean; longTermStart: string };
+type CloudPortfolioState = { holdings: Holding[]; profile: Profile; useDemoHoldings: boolean; longTermStart: string; usWatchlist?: string[]; usSectorLists?: Record<string, string[]> };
 type SyncStatus = "loading" | "syncing" | "synced" | "offline";
 type DeviceAccessState = {
   status: "checking" | "authorized" | "locked" | "error";
@@ -119,8 +119,20 @@ function recalculateHolding(item: Holding, remoteQuotes: Record<string, MarketQu
 const initialHoldings: Holding[] = [];
 
 type TrendMode = "return" | "profit" | "assets";
+type AnalysisMode = TrendMode | "allocation";
+type PageKey = "overview" | "ashare" | "us";
 type PortfolioSnapshot = { date: string; value: number; cost: number; returnRate: number };
 type PortfolioTrend = { dates: string[]; returns: number[]; profits: number[]; costs: number[]; values: number[] };
+type USMarketState = "pre" | "open" | "after" | "closed";
+type USQuote = MarketQuote & { sector?: string };
+
+const defaultUSWatchlist = ["TSLA", "NVDA", "RKLB", "PLTR", "AVGO", "MSFT", "GOOGL", "AMZN"];
+const defaultUSSectors: Record<string, string[]> = {
+  "信息技术": ["MSFT", "GOOGL", "AMZN", "PLTR"],
+  "半导体": ["NVDA", "AVGO", "AMD", "TSM"],
+  "航天军工": ["RKLB", "ASTS", "LUNR", "RDW", "BA", "LMT", "NOC", "RTX", "PL"],
+  "ETF": ["QQQ", "SPY", "DIA"],
+};
 type CalendarDay = { date: string; profit: number; rate: number };
 type CalendarMonth = { month: number; profit: number; rate: number; positiveRatio: number; recordedDays: number; days: CalendarDay[] };
 
@@ -268,9 +280,38 @@ function PerformanceChart({ compact = false, mode = "return", trend, range = "1�
   </div>;
 }
 
+function usMarketState(now = new Date()): { state:USMarketState; label:string; time:string } {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone:"America/New_York", hour:"2-digit", minute:"2-digit", hour12:false, weekday:"short" }).formatToParts(now);
+  const weekday = parts.find((part) => part.type === "weekday")?.value;
+  const hour = Number(parts.find((part) => part.type === "hour")?.value || 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value || 0);
+  const total = hour * 60 + minute;
+  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  if (weekday === "Sat" || weekday === "Sun") return { state:"closed", label:"已收盘", time };
+  if (total >= 240 && total < 570) return { state:"pre", label:"盘前", time };
+  if (total >= 570 && total < 960) return { state:"open", label:"盘中", time };
+  if (total >= 960 && total < 1200) return { state:"after", label:"盘后", time };
+  return { state:"closed", label:"已收盘", time };
+}
+
+function quoteTone(change:number) { return change >= 0 ? "up" : "down"; }
+
+function AllocationContent({ data, totalValue }: { data:Array<{ category:AssetBucket; amount:number; percent:number; className:string }>; totalValue:number }) {
+  let cursor = 0;
+  const gradient = data.map((item) => { const start = cursor; cursor += item.percent; return `${bucketColors[item.category]} ${start}% ${cursor}%`; }).join(", ");
+  return <div className="allocation-switch-content">
+    <div className="allocation-chart-layout allocation-inline-layout">
+      <div className="allocation-pie" style={{background:totalValue > 0 ? `conic-gradient(${gradient})` : "#e7e6e3"}} role="img" aria-label="资产配置分布"><div><span>总市值</span><strong>¥{totalValue >= 10000 ? `${(totalValue/10000).toFixed(1)}万` : totalValue.toLocaleString("zh-CN")}</strong></div></div>
+      <div className="allocation-legend-list">{data.map((item)=><div key={item.category}><span><i style={{background:bucketColors[item.category]}} />{item.category}</span><b>{item.percent.toFixed(1)}%</b><small>¥{item.amount.toLocaleString("zh-CN")}</small></div>)}</div>
+    </div>
+  </div>;
+}
+
 export default function Home() {
+  const [page, setPage] = useState<PageKey>("overview");
   const [range, setRange] = useState("1年");
-  const [trendMode, setTrendMode] = useState<TrendMode>("return");
+  const [trendMode, setTrendMode] = useState<AnalysisMode>("return");
+  const [calendarMode, setCalendarMode] = useState<"year" | "month" | "day">("month");
   const [query, setQuery] = useState("");
   const [bucketFilter, setBucketFilter] = useState<"全部" | AssetBucket>("全部");
   const [customHoldings, setCustomHoldings] = useState<Holding[]>([]);
@@ -300,13 +341,18 @@ export default function Home() {
   const [assetForm, setAssetForm] = useState({ symbol: "", name: "", market: "" as Market | "", category: "美股" as AssetBucket, avgCost: "", quantity: "", holdingDays: "" });
   const [assetLookup, setAssetLookup] = useState<{ state: "idle" | "loading" | "success" | "error"; message: string }>({ state: "idle", message: "" });
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [usWatchlist, setUsWatchlist] = useState<string[]>(defaultUSWatchlist);
+  const [usSectorLists, setUsSectorLists] = useState<Record<string, string[]>>(defaultUSSectors);
+  const [usQuotes, setUsQuotes] = useState<Record<string, USQuote>>({});
 
   const quoteCodes = useMemo(() => {
     const symbols = new Set<string>();
     if (useDemoHoldings) initialHoldings.forEach((item) => symbols.add(item.symbol));
     customHoldings.forEach((item) => symbols.add(item.symbol.trim().toUpperCase()));
+    usWatchlist.forEach((symbol) => symbols.add(symbol));
+    Object.values(usSectorLists).flat().forEach((symbol) => symbols.add(symbol));
     return [...symbols].filter(Boolean).join(",");
-  }, [customHoldings, useDemoHoldings]);
+  }, [customHoldings, usSectorLists, usWatchlist, useDemoHoldings]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
@@ -348,7 +394,7 @@ export default function Home() {
         .then((response) => response.json())
         .then((rawPayload) => {
           const payload = rawPayload as { quotes?: Record<string, MarketQuote>; errors?: Record<string, string> };
-          if (payload.quotes) setRemoteQuotes((current) => ({ ...current, ...payload.quotes }));
+          if (payload.quotes) { setRemoteQuotes((current) => ({ ...current, ...payload.quotes })); setUsQuotes((current) => ({ ...current, ...payload.quotes })); }
           setQuoteErrors(payload.errors ?? {});
         })
         .catch(() => { /* 保留上一次成功行情 */ });
@@ -415,6 +461,8 @@ export default function Home() {
       const assets = window.localStorage.getItem("hengce-custom-holdings");
       const settings = window.localStorage.getItem("hengce-profile");
       const holdingMode = window.localStorage.getItem("hengce-use-demo-holdings");
+      const savedWatchlist = window.localStorage.getItem("hengce-us-watchlist");
+      const savedSectors = window.localStorage.getItem("hengce-us-sector-lists");
       const history = window.localStorage.getItem("hengce-portfolio-snapshots-v1");
       const savedLongTermStart = window.localStorage.getItem("hengce-long-term-start");
       if (assets) {
@@ -422,6 +470,8 @@ export default function Home() {
         setCustomHoldings(stored);
       }
       if (holdingMode === "false") setUseDemoHoldings(false);
+      if (savedWatchlist) { const parsed = JSON.parse(savedWatchlist); if (Array.isArray(parsed) && parsed.length) setUsWatchlist(parsed); }
+      if (savedSectors) { const parsed = JSON.parse(savedSectors); if (parsed && typeof parsed === "object") setUsSectorLists(parsed); }
       if (settings) setProfile(JSON.parse(settings) as typeof profile);
       if (history) {
         const storedHistory = JSON.parse(history) as PortfolioSnapshot[];
@@ -451,14 +501,18 @@ export default function Home() {
           setProfile(remoteProfile);
           setUseDemoHoldings(Boolean(payload.state.useDemoHoldings));
           setLongTermStart(remoteStart);
+          if (Array.isArray(payload.state.usWatchlist) && payload.state.usWatchlist.length) setUsWatchlist(payload.state.usWatchlist.map((symbol) => symbol.toUpperCase()));
+          if (payload.state.usSectorLists && typeof payload.state.usSectorLists === "object") setUsSectorLists(payload.state.usSectorLists);
           window.localStorage.setItem("hengce-custom-holdings", JSON.stringify(remoteHoldings));
           window.localStorage.setItem("hengce-profile", JSON.stringify(remoteProfile));
           window.localStorage.setItem("hengce-use-demo-holdings", String(Boolean(payload.state.useDemoHoldings)));
           window.localStorage.setItem("hengce-long-term-start", remoteStart);
+          if (Array.isArray(payload.state.usWatchlist)) window.localStorage.setItem("hengce-us-watchlist", JSON.stringify(payload.state.usWatchlist));
+          if (payload.state.usSectorLists) window.localStorage.setItem("hengce-us-sector-lists", JSON.stringify(payload.state.usSectorLists));
         } else {
           await fetch("/api/portfolio", {
             method:"PUT", headers:{ "content-type":"application/json" },
-            body:JSON.stringify({ holdings:customHoldings, profile, useDemoHoldings, longTermStart:longTermStart || localDateKey() }),
+            body:JSON.stringify({ holdings:customHoldings, profile, useDemoHoldings, longTermStart:longTermStart || localDateKey(), usWatchlist, usSectorLists }),
           });
         }
         const remoteSnapshots = Array.isArray(payload.snapshots) ? payload.snapshots : [];
@@ -483,17 +537,19 @@ export default function Home() {
       window.localStorage.setItem("hengce-custom-holdings", JSON.stringify(customHoldings));
       window.localStorage.setItem("hengce-profile", JSON.stringify(profile));
       window.localStorage.setItem("hengce-use-demo-holdings", String(useDemoHoldings));
+      window.localStorage.setItem("hengce-us-watchlist", JSON.stringify(usWatchlist));
+      window.localStorage.setItem("hengce-us-sector-lists", JSON.stringify(usSectorLists));
       if (longTermStart) window.localStorage.setItem("hengce-long-term-start", longTermStart);
       fetch("/api/portfolio", {
         method:"PUT", headers:{ "content-type":"application/json" },
-        body:JSON.stringify({ holdings:customHoldings, profile, useDemoHoldings, longTermStart }),
+        body:JSON.stringify({ holdings:customHoldings, profile, useDemoHoldings, longTermStart, usWatchlist, usSectorLists }),
       }).then((response) => {
         if (!response.ok) throw new Error("sync failed");
         setSyncStatus("synced");
       }).catch(() => setSyncStatus("offline"));
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [cloudReady, customHoldings, longTermStart, profile, useDemoHoldings]);
+  }, [cloudReady, customHoldings, longTermStart, profile, usSectorLists, usWatchlist, useDemoHoldings]);
 
   const allHoldings = useMemo(() => {
     const merged = new Map<string, Holding>();
@@ -577,11 +633,12 @@ export default function Home() {
   const longTermStartDate = longTermStart ? new Date(`${longTermStart}T00:00:00`) : new Date();
   const todayStart = new Date(`${localDateKey()}T00:00:00`);
   const longTermDays = Math.max(1, Math.floor((todayStart.getTime() - longTermStartDate.getTime()) / 86400000) + 1);
+  const selectedTrendMode: TrendMode = trendMode === "allocation" ? "return" : trendMode;
   const trendView = {
     return: { description:"按每日资产快照计算", primary:"组合收益率", primaryValue:`${latestReturn >= 0 ? "+" : ""}${latestReturn.toFixed(2)}%`, secondary:"", secondaryValue:"", note:`云端每日 23:59 自动保存 · ${portfolioTrend.dates.length} 个日期` },
     profit: { description:"每日总市值减去成本投入", primary:"绝对收益", primaryValue:`${profit >= 0 ? "+" : ""}¥${profit.toLocaleString("zh-CN")}`, secondary:"", secondaryValue:"", note:`当前累计盈亏 ${profit >= 0 ? "+" : ""}¥${profit.toLocaleString("zh-CN")}` },
     assets: { description:"总市值与成本投入同图对照", primary:"总市值", primaryValue:`¥${totalValue.toLocaleString("zh-CN")}`, secondary:"成本投入", secondaryValue:`¥${totalCost.toLocaleString("zh-CN")}`, note:`浮动盈亏 ${profit >= 0 ? "+" : ""}¥${profit.toLocaleString("zh-CN")}` },
-  }[trendMode];
+  }[selectedTrendMode];
   const allocationData = assetBuckets.map((category) => {
     const amount = allHoldings.filter((item) => item.category === category).reduce((sum, item) => sum + item.value, 0);
     return { category, amount, percent: totalValue > 0 ? (amount / totalValue) * 100 : 0, className: bucketClasses[category] };
@@ -607,6 +664,7 @@ export default function Home() {
     const bucketMatch = bucketFilter === "全部" || item.category === bucketFilter;
     return bucketMatch && (!keyword || item.name.toLowerCase().includes(keyword) || item.symbol.toLowerCase().includes(keyword));
   }), [allHoldings, bucketFilter, query]);
+  const usHoldingSymbols = useMemo(() => new Set(allHoldings.filter((item) => item.market === "美股").map((item) => item.symbol)), [allHoldings]);
 
   function addHolding(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -693,6 +751,8 @@ export default function Home() {
       profile,
       useDemoHoldings,
       longTermStart,
+      usWatchlist,
+      usSectorLists,
       snapshots:portfolioHistory,
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type:"application/json" }));
@@ -718,15 +778,19 @@ export default function Home() {
       setProfile(importedProfile);
       setUseDemoHoldings(Boolean(backup.useDemoHoldings));
       setLongTermStart(importedStart);
+      if (Array.isArray(backup.usWatchlist) && backup.usWatchlist.length) setUsWatchlist(backup.usWatchlist);
+      if (backup.usSectorLists && typeof backup.usSectorLists === "object") setUsSectorLists(backup.usSectorLists);
       setPortfolioHistory(importedSnapshots);
       window.localStorage.setItem("hengce-custom-holdings", JSON.stringify(backup.holdings));
       window.localStorage.setItem("hengce-profile", JSON.stringify(importedProfile));
       window.localStorage.setItem("hengce-use-demo-holdings", String(Boolean(backup.useDemoHoldings)));
       window.localStorage.setItem("hengce-long-term-start", importedStart);
+      window.localStorage.setItem("hengce-us-watchlist", JSON.stringify(backup.usWatchlist ?? defaultUSWatchlist));
+      window.localStorage.setItem("hengce-us-sector-lists", JSON.stringify(backup.usSectorLists ?? defaultUSSectors));
       window.localStorage.setItem("hengce-portfolio-snapshots-v1", JSON.stringify(importedSnapshots));
       const stateResponse = await fetch("/api/portfolio", {
         method:"PUT", headers:{ "content-type":"application/json" },
-        body:JSON.stringify({ holdings:backup.holdings, profile:importedProfile, useDemoHoldings:Boolean(backup.useDemoHoldings), longTermStart:importedStart }),
+        body:JSON.stringify({ holdings:backup.holdings, profile:importedProfile, useDemoHoldings:Boolean(backup.useDemoHoldings), longTermStart:importedStart, usWatchlist:backup.usWatchlist ?? defaultUSWatchlist, usSectorLists:backup.usSectorLists ?? defaultUSSectors }),
       });
       if (!stateResponse.ok) throw new Error("云端保存失败");
       if (importedSnapshots.length) {
@@ -766,17 +830,17 @@ export default function Home() {
   return <main className="app-shell overview-only">
     <section className="workspace">
       <header className="topbar">
-        <div><h1>Minimalism</h1></div>
+        <div><h1>{page === "overview" ? "Minimalism" : page === "ashare" ? "A股行情" : "美股行情"}</h1><span className="page-kicker">{page === "overview" ? "PRIVATE PORTFOLIO" : page === "ashare" ? "CHINA MARKET" : "US MARKET"}</span></div>
         <div className="top-actions">
           <label className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索股票 / 基金代码" aria-label="搜索股票或基金" /></label>
           <span className={`cloud-sync-status ${syncStatus}`}><i />{syncStatus === "loading" ? "连接云端" : syncStatus === "syncing" ? "同步中" : syncStatus === "synced" ? "已同步" : "离线"}</span>
           {!deviceAccess.trusted && <button className="trust-device-btn" onClick={()=>void trustCurrentDevice()}>信任此设备</button>}
           <button className="migration-btn" onClick={() => setShowSettings(true)}><span aria-hidden="true">⇄</span><span className="migration-label">数据迁移</span></button>
           <button className="icon-btn" aria-label="偏好设置" onClick={() => setShowSettings(true)}>⚙</button>
-          <button className="primary-btn" onClick={() => setShowAdd(true)}><span className="add-asset-icon" aria-hidden="true" /><span className="add-asset-label">添加资产</span></button>
+          {page === "overview" && <button className="primary-btn" onClick={() => setShowAdd(true)}><span className="add-asset-icon" aria-hidden="true" /><span className="add-asset-label">添加资产</span></button>}
         </div>
       </header>
-
+      {page === "overview" && <>
         <section className="summary-card">
           <div className="summary-main">
             <div className="eyebrow">总资产（{baseCurrency}）<button onClick={() => setAmountsVisible(!amountsVisible)} aria-label="显示或隐藏金额">{amountsVisible ? "◉" : "○"}</button></div>
@@ -795,21 +859,17 @@ export default function Home() {
 
         <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} />
         <section className="dashboard-grid">
-          <article className="panel performance-panel">
-            <div className="panel-head trend-head"><div><h2>资产走势</h2><p>{trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['profit','收益'],['assets','市值和成本']] as [TrendMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div><div className="segmented">{["1月","3月","6月","1年","全部"].map((item) => <button key={item} className={range === item ? "selected" : ""} onClick={() => setRange(item)}>{item}</button>)}</div></div></div>
-            <div className="chart-legend"><span><i className="legend-value" />{trendView.primary} <b className={trendMode !== "assets" ? (profit >= 0 ? "up" : "down") : ""}>{trendView.primaryValue}</b></span>{trendView.secondary && <span><i className="legend-cost" />{trendView.secondary} <b>{trendView.secondaryValue}</b></span>}<span className="chart-note">{trendView.note}</span></div>
-            <PerformanceChart mode={trendMode} trend={portfolioTrend} range={range} />
-          </article>
-          <article className="panel allocation-panel">
-            <div className="panel-head"><div><h2>资产配置</h2><p>按当前持仓市值实时统计</p></div></div>
-            <div className="allocation-chart-layout">
-              <div className="allocation-pie" style={{background:totalValue > 0 ? `conic-gradient(${allocationGradient})` : "#e7e6e3"}} role="img" aria-label="六类资产分类占比饼图"><div><span>总市值</span><strong>¥{totalValue >= 10000 ? `${(totalValue/10000).toFixed(1)}万` : totalValue.toLocaleString("zh-CN")}</strong></div><div className="allocation-pie-labels" aria-hidden="true">{allocationLabels.map((item)=><span key={item.category} style={{left:`${item.left}%`,top:`${item.top}%`}}><b>{item.category}</b>{item.percent.toFixed(0)}%</span>)}</div></div>
-              <div className="allocation-legend-list">{allocationData.map((item)=><div key={item.category}><span><i style={{background:bucketColors[item.category]}} />{item.category}</span><b>{item.percent.toFixed(1)}%</b><small>¥{item.amount.toLocaleString("zh-CN")}</small></div>)}</div>
-            </div>
+          <article className="panel performance-panel analysis-panel">
+            <div className="panel-head trend-head"><div><h2>{trendMode === "allocation" ? "资产配置分布" : "资产分析"}</h2><p>{trendMode === "allocation" ? "按当前持仓市值实时统计" : trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['profit','收益'],['assets','市值成本'],['allocation','资产配置分布']] as [AnalysisMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div>{trendMode !== "allocation" && <div className="segmented">{["1月","3月","6月","1年","全部"].map((item) => <button key={item} className={range === item ? "selected" : ""} onClick={() => setRange(item)}>{item}</button>)}</div>}</div></div>
+            {trendMode === "allocation" ? <AllocationContent data={allocationData} totalValue={totalValue} /> : <><div className="chart-legend"><span><i className="legend-value" />{trendView.primary} <b className={selectedTrendMode !== "assets" ? (profit >= 0 ? "up" : "down") : ""}>{trendView.primaryValue}</b></span>{trendView.secondary && <span><i className="legend-cost" />{trendView.secondary} <b>{trendView.secondaryValue}</b></span>}<span className="chart-note">{trendView.note}</span></div><PerformanceChart mode={selectedTrendMode} trend={portfolioTrend} range={range} /></>}
           </article>
         </section>
-        <ReturnCalendar months={returnCalendar} year={calendarYear} onYearChange={setCalendarYear} />
-        <CnMarketPanel data={cnMarket} loading={cnMarketLoading} />
+        <ReturnCalendar months={returnCalendar} year={calendarYear} onYearChange={setCalendarYear} mode={calendarMode} onModeChange={setCalendarMode} />
+        <div className="overview-heatmap-section"><div className="section-inline-head"><div><h2>持仓热力图</h2><p>面积按持仓市值，颜色按今日涨跌</p></div></div><HoldingsHeatmap holdings={allHoldings} onSelect={()=>undefined} /></div>
+      </>}
+      {page === "ashare" && <section className="market-page-content"><div className="market-page-intro"><span>CHINA MARKET</span><h2>A股行情</h2><p>重要指数与持仓相关市场信息</p></div><CnMarketPanel data={cnMarket} loading={cnMarketLoading} expandedByDefault /></section>}
+      {page === "us" && <USMarketPage watchlist={usWatchlist} sectorLists={usSectorLists} quotes={usQuotes} holdings={allHoldings} onWatchlistChange={setUsWatchlist} onSectorListsChange={setUsSectorLists} />}
+      <BottomNavigation page={page} onChange={setPage} />
     </section>
 
     {showAdd && <Modal title="添加一项持仓" eyebrow="PERSONAL PORTFOLIO" description="输入代码后自动显示全名和市场；持仓总成本由均价 × 数量计算。" onClose={() => setShowAdd(false)}><form className="modal-form" onSubmit={addHolding}><label className="wide">代码<input required value={assetForm.symbol} onChange={(event)=>setAssetForm({...assetForm,symbol:event.target.value,market:"",name:""})} placeholder="021000 / 600036 / AAPL" /><small>停止输入约半秒后自动查询</small></label><div className="resolved-identity wide"><span><small>持仓名称</small><strong>{assetLookup.state === "loading" ? "正在识别…" : assetForm.name || "输入代码后自动显示"}</strong></span><span><small>市场种类</small><strong className={assetForm.market ? `market-${assetForm.market}` : ""}>{assetForm.market || "待识别"}</strong></span></div><input type="hidden" required value={assetForm.name} readOnly /><label className="wide">资产分类（由你选择）<select value={assetForm.category} onChange={(event)=>setAssetForm({...assetForm,category:event.target.value as AssetBucket})}>{assetBuckets.map((item)=><option key={item}>{item}</option>)}</select></label><label>持仓均价（{assetForm.market === "美股" ? "USD" : "CNY"}）<input required type="number" min="0" step="any" value={assetForm.avgCost} onChange={(event)=>setAssetForm({...assetForm,avgCost:event.target.value})} /></label><label>持仓数<input required type="number" min="0.00000001" step="any" value={assetForm.quantity} onChange={(event)=>setAssetForm({...assetForm,quantity:event.target.value})} /></label><div className={`api-form-note wide ${assetLookup.state}`}>{assetLookup.state === "idle" ? "行情来源：东方财富、Nasdaq。" : assetLookup.message}</div><ModalActions onCancel={()=>setShowAdd(false)} label="保存到持仓" /></form></Modal>}
@@ -827,11 +887,56 @@ function MarketSparkline({ item }: { item: CnMarketItem }) {
   return <svg className="market-spark" viewBox="0 0 100 42" preserveAspectRatio="none" role="img" aria-label={`${item.name}今日走势`}><line x1="0" x2="100" y1="22" y2="22" /><polyline points={points} className={(item.changePercent ?? 0) >= 0 ? "cn-up-line" : "cn-down-line"} /></svg>;
 }
 
-function CnMarketPanel({ data, loading }: { data: CnMarketResponse | null; loading: boolean }) {
+function HoldingsHeatmap({ holdings, onSelect }: { holdings: Holding[]; onSelect: (symbol: string) => void }) {
+  const items = holdings.filter((item) => item.market === "美股" && item.value > 0).sort((a, b) => b.value - a.value);
+  if (!items.length) return <div className="empty-state">暂无美股持仓，添加后会在这里显示组合热力图。</div>;
+  return <div className="portfolio-treemap">{items.map((item) => {
+    const intensity = Math.min(.85, .22 + Math.abs(item.change || 0) / 8);
+    const positive = (item.change || 0) >= 0;
+    return <button key={item.symbol} className="treemap-tile" style={{ flexGrow: Math.max(item.value, 1), background: positive ? `rgba(193, 57, 57, ${intensity})` : `rgba(47, 121, 74, ${intensity})` }} onClick={() => onSelect(item.symbol)}><strong>{item.symbol}</strong><span>{item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%</span><small>¥{item.value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}</small></button>;
+  })}</div>;
+}
+
+function USQuoteMatrix({ symbols, quotes, holdings, onSelect }: { symbols: string[]; quotes: Record<string, USQuote>; holdings: Holding[]; onSelect: (symbol: string) => void }) {
+  return <div className="us-quote-matrix">{symbols.map((symbol) => {
+    const quote = quotes[symbol];
+    const holding = holdings.find((item) => item.symbol === symbol);
+    const change = quote?.change ?? holding?.change ?? 0;
+    const tone = quoteTone(change);
+    return <button key={symbol} className={`us-quote-tile ${tone}`} onClick={() => onSelect(symbol)}><strong>{symbol}</strong><span>{quote ? `${quote.price.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "—"}</span><b>{change >= 0 ? "+" : ""}{change.toFixed(2)}%</b></button>;
+  })}</div>;
+}
+
+function USMarketPage({ watchlist, sectorLists, quotes, holdings, onWatchlistChange, onSectorListsChange }: { watchlist: string[]; sectorLists: Record<string, string[]>; quotes: Record<string, USQuote>; holdings: Holding[]; onWatchlistChange: (symbols: string[]) => void; onSectorListsChange: (lists: Record<string, string[]>) => void }) {
+  const [mode, setMode] = useState<"matrix" | "holdings">("matrix");
+  const [activeSector, setActiveSector] = useState(Object.keys(sectorLists)[0] || "信息技术");
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [newSymbol, setNewSymbol] = useState("");
+  const market = usMarketState();
+  const selectedQuote = selectedSymbol ? quotes[selectedSymbol] : undefined;
+  const selectedHolding = selectedSymbol ? holdings.find((item) => item.symbol === selectedSymbol) : undefined;
+  const addWatch = () => { const symbol = newSymbol.trim().toUpperCase(); if (!symbol || watchlist.includes(symbol)) return; onWatchlistChange([...watchlist, symbol]); setNewSymbol(""); };
+  const removeWatch = (symbol: string) => onWatchlistChange(watchlist.filter((item) => item !== symbol));
+  const moveWatch = (index: number, direction: -1 | 1) => { const next = [...watchlist]; const target = index + direction; if (target < 0 || target >= next.length) return; [next[index], next[target]] = [next[target], next[index]]; onWatchlistChange(next); };
+  const addToSector = () => { const symbol = newSymbol.trim().toUpperCase(); if (!symbol) return; onSectorListsChange({ ...sectorLists, [activeSector]: Array.from(new Set([...(sectorLists[activeSector] || []), symbol])) }); setNewSymbol(""); };
+  const currentSectorSymbols = sectorLists[activeSector] || [];
+  return <section className="market-page-content us-market-page"><div className="market-page-intro"><div><span>US MARKET</span><h2>美股行情</h2><p>矩阵快速浏览，持仓热力图看组合贡献</p></div><div className="us-market-status"><i className={`market-state-dot ${market.state}`} />{market.label}<small>{market.time}</small><button onClick={() => window.location.reload()}>刷新</button></div></div>
+    <div className="us-view-switch"><button className={mode === "matrix" ? "active" : ""} onClick={() => setMode("matrix")}>矩阵模式</button><button className={mode === "holdings" ? "active" : ""} onClick={() => setMode("holdings")}>持仓热力图</button></div>
+    {mode === "matrix" ? <><section className="us-subpanel"><div className="subsection-head"><div><h3>热门关注</h3><span>点击查看快速信息</span></div><div className="watch-add"><input value={newSymbol} onChange={(event) => setNewSymbol(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") addWatch(); }} placeholder="Ticker" aria-label="添加美股代码" /><button onClick={addWatch}>+ 添加</button></div></div><USQuoteMatrix symbols={watchlist} quotes={quotes} holdings={holdings} onSelect={setSelectedSymbol} /><div className="watchlist-manage">{watchlist.map((symbol, index) => <span key={symbol}>{symbol}<button onClick={() => moveWatch(index, -1)} aria-label={`${symbol}上移`}>↑</button><button onClick={() => moveWatch(index, 1)} aria-label={`${symbol}下移`}>↓</button><button onClick={() => removeWatch(symbol)} aria-label={`删除${symbol}`}>×</button></span>)}</div></section><section className="us-subpanel"><div className="subsection-head"><div><h3>行业</h3><span>可自定义重点公司列表</span></div><div className="watch-add"><input value={newSymbol} onChange={(event) => setNewSymbol(event.target.value.toUpperCase())} placeholder="添加到行业" aria-label="添加行业股票" /><button onClick={addToSector}>加入 {activeSector}</button></div></div><div className="sector-tabs">{Object.keys(sectorLists).map((sector) => <button key={sector} className={activeSector === sector ? "active" : ""} onClick={() => setActiveSector(sector)}>{sector} <small>{(sectorLists[sector] || []).length}</small></button>)}</div><USQuoteMatrix symbols={currentSectorSymbols} quotes={quotes} holdings={holdings} onSelect={setSelectedSymbol} /></section></> : <section className="us-subpanel"><div className="subsection-head"><div><h3>我的美股持仓</h3><span>面积按持仓市值，颜色按今日涨跌</span></div></div><HoldingsHeatmap holdings={holdings} onSelect={setSelectedSymbol} /></section>}
+    {selectedSymbol && <div className="quick-stock-card"><button className="quick-card-close" onClick={() => setSelectedSymbol(null)}>×</button><div><strong>{selectedQuote?.name || selectedHolding?.name || selectedSymbol}</strong><span>{selectedSymbol}</span></div><div className="quick-card-price"><b>{selectedQuote ? selectedQuote.price.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "—"}</b><em className={quoteTone(selectedQuote?.change ?? selectedHolding?.change ?? 0)}>{(selectedQuote?.change ?? selectedHolding?.change ?? 0) >= 0 ? "+" : ""}{(selectedQuote?.change ?? selectedHolding?.change ?? 0).toFixed(2)}%</em></div>{selectedHolding && <div className="quick-card-holding"><span>持仓市值 ¥{selectedHolding.value.toLocaleString("zh-CN")}</span><span>成本 ¥{selectedHolding.avgCost.toLocaleString("zh-CN")}</span><span>持仓收益 ¥{(selectedHolding.value - selectedHolding.cost).toLocaleString("zh-CN")}</span></div>}</div>}
+  </section>;
+}
+
+function BottomNavigation({ page, onChange }: { page: PageKey; onChange: (page: PageKey) => void }) {
+  return <nav className="bottom-nav" aria-label="主导航">{([["overview", "资产总览", "总览"], ["ashare", "A股行情", "A股"], ["us", "美股行情", "美股"]] as const).map(([key, label, short]) => <button key={key} className={page === key ? "active" : ""} onClick={() => onChange(key)}><strong>{short}</strong><span>{label}</span></button>)}</nav>;
+}
+
+function CnMarketPanel({ data, loading, expandedByDefault = false }: { data: CnMarketResponse | null; loading: boolean; expandedByDefault?: boolean }) {
+  const [expanded, setExpanded] = useState(expandedByDefault);
   const items = todayMarketCodes.map((code) => data?.items?.[code]).filter((item): item is CnMarketItem => Boolean(item));
   const stateLabel = data?.marketState === "open" ? "交易中" : data?.marketState === "lunch" ? "午间休市" : data?.marketState === "holiday" ? "休市 / 节假日" : "已收盘";
   const fund = data?.items?.["515450"];
-  return <details className="panel cn-market-panel collapsible-market">
+  return <details className="panel cn-market-panel collapsible-market" open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
     <summary className="market-master-summary"><div><h2>当前实时行情</h2><p>515450、中证红利、科创50 · 按需展开</p></div><div className="cn-market-status"><span className={`market-state ${data?.marketState || "closed"}`}>{stateLabel}</span><small>{loading ? "更新中…" : data?.updatedAt ? `更新 ${new Date(data.updatedAt).toLocaleTimeString("zh-CN", { hour:"2-digit", minute:"2-digit" })}` : "等待数据"}</small></div><span className="collapse-chevron" aria-hidden="true">⌄</span></summary>
     <div className="market-collapsible-body">
       <details className="market-subsection">
@@ -850,19 +955,20 @@ function CnMarketPanel({ data, loading }: { data: CnMarketResponse | null; loadi
   </details>;
 }
 
-function ReturnCalendar({ months, year, onYearChange }: { months:CalendarMonth[]; year:number; onYearChange:(year:number)=>void }) {
-  const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
+function ReturnCalendar({ months, year, onYearChange, mode, onModeChange }: { months:CalendarMonth[]; year:number; onYearChange:(year:number)=>void; mode:"year"|"month"|"day"; onModeChange:(mode:"year"|"month"|"day")=>void }) {
+  const [expandedMonth, setExpandedMonth] = useState<number | null>(new Date().getMonth() + 1);
   const selected = expandedMonth ? months[expandedMonth - 1] : null;
   const firstWeekday = selected ? (new Date(year, selected.month - 1, 1).getDay() + 6) % 7 : 0;
   const daysInMonth = selected ? new Date(year, selected.month, 0).getDate() : 0;
   const dayMap = new Map(selected?.days.map((day) => [Number(day.date.slice(-2)), day]) ?? []);
   const cells: Array<{ blank:boolean; key:string; day?:number }> = selected ? [...Array.from({ length:firstWeekday }, (_, index) => ({ blank:true, key:`blank-${index}` })), ...Array.from({ length:daysInMonth }, (_, index) => ({ blank:false, key:`day-${index + 1}`, day:index + 1 }))] : [];
   return <section className="panel return-calendar-panel">
-    <div className="panel-head calendar-head"><div><h2>收益日历</h2><p>已按成本变化校正入金与出金 · 月收益率采用复利</p></div><div className="calendar-year-control"><button onClick={()=>{ onYearChange(year - 1); setExpandedMonth(null); }} aria-label="上一年">‹</button><strong>{year} 年</strong><button onClick={()=>{ onYearChange(year + 1); setExpandedMonth(null); }} aria-label="下一年">›</button></div></div>
-    <div className="year-month-grid">{months.map((month) => {
+    <div className="panel-head calendar-head"><div><h2>收益日历</h2><p>已按成本变化校正入金与出金 · 月收益率采用复利</p></div><div className="calendar-controls"><div className="calendar-mode-switch">{([["year","年度"],["month","月度"],["day","每日"]] as const).map(([key,label])=><button key={key} className={mode === key ? "active" : ""} onClick={()=>onModeChange(key)}>{label}</button>)}</div><div className="calendar-year-control"><button onClick={()=>{ onYearChange(year - 1); setExpandedMonth(null); }} aria-label="上一年">‹</button><strong>{year} 年</strong><button onClick={()=>{ onYearChange(year + 1); setExpandedMonth(null); }} aria-label="下一年">›</button></div></div></div>
+    {mode === "year" && <div className="calendar-year-grid">{[year - 3, year - 2, year - 1, year].map((itemYear) => <button key={itemYear} className={`calendar-year-card ${itemYear === year ? "selected" : ""}`} onClick={()=>{ if (itemYear !== year) onYearChange(itemYear); onModeChange("month"); }}><strong>{itemYear}</strong><span>{itemYear === year ? `${months.reduce((sum,item)=>sum + item.profit, 0) >= 0 ? "+" : "-"}¥${Math.abs(months.reduce((sum,item)=>sum + item.profit, 0)).toLocaleString("zh-CN", { maximumFractionDigits: 0 })}` : "暂无快照"}</span><small>{itemYear === year ? "当前年度累计" : "等待历史记录"}</small></button>)}</div>}
+    {mode !== "year" && <div className="year-month-grid">{months.map((month) => {
       const tone = month.profit > 0 ? "up" : month.profit < 0 ? "down" : "neutral";
-      return <button key={month.month} className={`calendar-month-card ${expandedMonth === month.month ? "selected" : ""}`} onClick={()=>setExpandedMonth((current)=>current === month.month ? null : month.month)} aria-expanded={expandedMonth === month.month}><span>{month.month} 月</span><strong className={tone}>{month.recordedDays ? `${month.profit >= 0 ? "+" : "-"}¥${Math.abs(month.profit).toLocaleString("zh-CN", { maximumFractionDigits:2 })}` : "—"}</strong><small className={tone}>{month.recordedDays ? `${month.rate >= 0 ? "+" : ""}${month.rate.toFixed(2)}%` : "暂无记录"}</small></button>;
-    })}</div>
+      return <button key={month.month} className={`calendar-month-card ${expandedMonth === month.month ? "selected" : ""}`} onClick={()=>{ setExpandedMonth((current)=>current === month.month ? null : month.month); onModeChange("day"); }} aria-expanded={expandedMonth === month.month}><span>{month.month} 月</span><strong className={tone}>{month.recordedDays ? `${month.profit >= 0 ? "+" : "-"}¥${Math.abs(month.profit).toLocaleString("zh-CN", { maximumFractionDigits:2 })}` : "—"}</strong><small className={tone}>{month.recordedDays ? `${month.rate >= 0 ? "+" : ""}${month.rate.toFixed(2)}%` : "暂无记录"}</small></button>;
+    })}</div>}
     {selected && <div className="month-calendar-detail">
       <div className="month-summary"><strong>{selected.month} 月</strong><span className={selected.profit >= 0 ? "up" : "down"}>{selected.recordedDays ? `${selected.profit >= 0 ? "+" : "-"}¥${Math.abs(selected.profit).toLocaleString("zh-CN", { maximumFractionDigits:2 })}` : "—"}<small>本月累计收益</small></span><span className={selected.rate >= 0 ? "up" : "down"}>{selected.recordedDays ? `${selected.rate >= 0 ? "+" : ""}${selected.rate.toFixed(2)}%` : "—"}<small>本月收益率</small></span><span>{selected.recordedDays ? `${selected.positiveRatio.toFixed(0)}%` : "—"}<small>盈利日占比</small></span></div>
       <div className="calendar-weekdays">{["周一","周二","周三","周四","周五","周六","周日"].map((day)=><span key={day}>{day}</span>)}</div>

@@ -1640,6 +1640,11 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 .portfolio-treemap .treemap-tile strong { font-size:clamp(10px,1.15vw,16px)!important; font-weight:600!important; letter-spacing:-.02em; }
 .portfolio-treemap .treemap-tile span { font-size:clamp(9px,.95vw,13px)!important; font-weight:600!important; }
 .portfolio-treemap .treemap-tile small { font-size:clamp(8px,.8vw,11px)!important; font-weight:550!important; }
+.portfolio-treemap .treemap-tile-compact strong { white-space:nowrap!important; overflow:visible!important; text-overflow:clip!important; font-size:clamp(8px,2.5vw,13px)!important; font-weight:550!important; letter-spacing:-.04em; }
+.heatmap-edit-btn { flex:0 0 auto; padding:6px 10px; border:1px solid #b8b8b8; border-radius:6px; color:#333; background:#fff; font-size:11px; cursor:pointer; }
+.heatmap-edit-btn:hover { background:#171717; color:#fff; }
+.overview-hero .performance-panel { border-left:2px solid #171717!important; }
+@media(max-width:980px){ .overview-hero .performance-panel { border-left:0!important; border-top:2px solid #171717!important; } }
 .overview-only .trend-switch { width:100%!important; display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; }
 .overview-only .trend-switch button { min-width:0!important; flex:1 1 0!important; padding-left:6px!important; padding-right:6px!important; }
 .overview-hero .summary-card { padding:12px 16px!important; }

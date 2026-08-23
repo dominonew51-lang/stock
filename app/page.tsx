@@ -363,6 +363,7 @@ export default function Home() {
   const [quoteErrors, setQuoteErrors] = useState<Record<string, string>>({});
   const [useDemoHoldings, setUseDemoHoldings] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [showHoldingsEditor, setShowHoldingsEditor] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [amountsVisible, setAmountsVisible] = useState(true);
   const [baseCurrency, setBaseCurrency] = useState<"CNY" | "USD">("CNY");
@@ -866,14 +867,7 @@ export default function Home() {
     <section className="workspace">
       <header className="topbar">
         <div><h1>{page === "overview" ? "Minimalism" : page === "ashare" ? "A股行情" : "美股行情"}</h1><span className="page-kicker">{page === "overview" ? "PRIVATE PORTFOLIO" : page === "ashare" ? "CHINA MARKET" : "US MARKET"}</span></div>
-        <div className="top-actions">
-          <label className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索股票 / 基金代码" aria-label="搜索股票或基金" /></label>
-          <span className={`cloud-sync-status ${syncStatus}`}><i />{syncStatus === "loading" ? "连接云端" : syncStatus === "syncing" ? "同步中" : syncStatus === "synced" ? "已同步" : "离线"}</span>
-          {!deviceAccess.trusted && <button className="trust-device-btn" onClick={()=>void trustCurrentDevice()}>信任此设备</button>}
-          <button className="migration-btn" onClick={() => setShowSettings(true)}><span aria-hidden="true">⇄</span><span className="migration-label">数据迁移</span></button>
-          <button className="icon-btn" aria-label="偏好设置" onClick={() => setShowSettings(true)}>⚙</button>
-          {page === "overview" && <button className="primary-btn" onClick={() => setShowAdd(true)}><span className="add-asset-icon" aria-hidden="true" /><span className="add-asset-label">添加资产</span></button>}
-        </div>
+        <div className="top-actions"><button className="icon-btn" aria-label="偏好设置" onClick={() => setShowSettings(true)}>⚙</button></div>
       </header>
       {page === "overview" && <>
         <section className="overview-hero">
@@ -897,8 +891,9 @@ export default function Home() {
             {trendMode === "allocation" ? <AllocationContent data={allocationData} totalValue={totalValue} /> : <><div className="chart-legend"><span><i className="legend-value" />{trendView.primary} <b className={selectedTrendMode !== "assets" ? (profit >= 0 ? "up" : "down") : ""}>{trendView.primaryValue}</b></span>{trendView.secondary && <span><i className="legend-cost" />{trendView.secondary} <b>{trendView.secondaryValue}</b></span>}<span className="chart-note">{trendView.note}</span></div><PerformanceChart mode={selectedTrendMode} trend={portfolioTrend} range={range} /></>}
           </article>
         </section>
-        <section className="panel overview-heatmap-section"><div className="section-inline-head"><div><h2>持仓热力图</h2><p>面积按持仓市值，颜色按今日涨跌；点击查看持仓详情</p></div></div><HoldingsHeatmap holdings={allHoldings} onSelect={setSelectedOverviewSymbol} includeAll /></section>
+        <section className="panel overview-heatmap-section"><div className="section-inline-head"><div><h2>持仓热力图</h2><p>面积按持仓市值，颜色按历史收益；点击查看持仓详情</p></div><button className="heatmap-edit-btn" onClick={() => setShowHoldingsEditor((current) => !current)}>{showHoldingsEditor ? "收起编辑" : "编辑持仓"}</button></div><HoldingsHeatmap holdings={allHoldings} onSelect={setSelectedOverviewSymbol} includeAll /></section>
         {selectedOverviewHolding && <PortfolioQuickCard symbol={selectedOverviewHolding.symbol} quote={remoteQuotes[selectedOverviewHolding.symbol]} holding={selectedOverviewHolding} onClose={()=>setSelectedOverviewSymbol(null)} />}
+        {showHoldingsEditor && <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} onDelete={deleteHolding} />}
       </>}
       {page === "ashare" && <section className="market-page-content"><div className="market-page-intro"><div><span>CHINA MARKET</span><h2>A股行情</h2><p>重要指数与持仓相关市场信息</p></div></div><CnMarketPanel data={cnMarket} loading={cnMarketLoading} expandedByDefault /></section>}
       {page === "us" && <USMarketPage watchlist={usWatchlist} sectorLists={usSectorLists} quotes={usQuotes} holdings={allHoldings} onWatchlistChange={setUsWatchlist} onSectorListsChange={setUsSectorLists} />}

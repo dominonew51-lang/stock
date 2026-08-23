@@ -933,7 +933,8 @@ function HoldingsHeatmap({ holdings, onSelect, includeAll = false }: { holdings:
     const positive = historyRate >= 0;
     const background = positive ? `hsl(0 68% ${Math.max(30, 58 - intensity * 22)}%)` : `hsl(151 47% ${Math.max(30, 58 - intensity * 22)}%)`;
     const name = localizedAssetName(item.symbol, item.name, item.market);
-    return <button key={item.symbol} className="treemap-tile" style={{ left:`${rectangle.x}%`, top:`${rectangle.y}%`, width:`${rectangle.w}%`, height:`${rectangle.h}%`, background, color:"#fff" }} onClick={() => onSelect(item.symbol)} aria-label={`查看${name}持仓详情`}><strong>{name}</strong><span>¥{item.value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}</span><small>{percentage.toFixed(1)}% · {historyRate >= 0 ? "+" : ""}{historyRate.toFixed(1)}%</small></button>;
+    const compact = percentage < 15;
+    return <button key={item.symbol} className={`treemap-tile ${compact ? "treemap-tile-compact" : ""}`} style={{ left:`${rectangle.x}%`, top:`${rectangle.y}%`, width:`${rectangle.w}%`, height:`${rectangle.h}%`, background, color:"#fff" }} onClick={() => onSelect(item.symbol)} aria-label={`查看${name}持仓详情`}><strong>{name}</strong>{!compact && <><span>¥{item.value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}</span><small>{percentage.toFixed(1)}% · {historyRate >= 0 ? "+" : ""}{historyRate.toFixed(1)}%</small></>}</button>;
   })}</div>;
 }
 

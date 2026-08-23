@@ -892,7 +892,7 @@ export default function Home() {
             </div>
           </section>
           <article className="panel performance-panel analysis-panel">
-            <div className="panel-head trend-head"><div><h2>{trendMode === "allocation" ? "资产配置分布" : "资产分析"}</h2><p>{trendMode === "allocation" ? "按当前持仓市值实时统计" : trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['profit','收益'],['assets','市值成本'],['allocation','资产配置分布']] as [AnalysisMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div>{trendMode !== "allocation" && <div className="segmented">{["1月","3月","6月","1年","全部"].map((item) => <button key={item} className={range === item ? "selected" : ""} onClick={() => setRange(item)}>{item}</button>)}</div>}</div></div>
+            <div className="panel-head trend-head"><div><h2>{trendMode === "allocation" ? "资产配置分布" : "资产分析"}</h2><p>{trendMode === "allocation" ? "按当前持仓市值实时统计" : trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['profit','收益'],['assets','市值成本'],['allocation','资产配置分布']] as [AnalysisMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div></div></div>
             {trendMode === "allocation" ? <AllocationContent data={allocationData} totalValue={totalValue} /> : <><div className="chart-legend"><span><i className="legend-value" />{trendView.primary} <b className={selectedTrendMode !== "assets" ? (profit >= 0 ? "up" : "down") : ""}>{trendView.primaryValue}</b></span>{trendView.secondary && <span><i className="legend-cost" />{trendView.secondary} <b>{trendView.secondaryValue}</b></span>}<span className="chart-note">{trendView.note}</span></div><PerformanceChart mode={selectedTrendMode} trend={portfolioTrend} range={range} /></>}
           </article>
         </section>
@@ -923,7 +923,7 @@ function HoldingsHeatmap({ holdings, onSelect, includeAll = false }: { holdings:
   const items = holdings.filter((item) => (includeAll || item.market === "美股") && item.value > 0).sort((a, b) => b.value - a.value);
   const total = items.reduce((sum, item) => sum + item.value, 0);
   if (!items.length) return <div className="empty-state">暂无{includeAll ? "" : "美股"}持仓，添加后会在这里显示组合热力图。</div>;
-  const layout = sliceTreemap(items.map((item) => item.value), 0, 0, 100, 100, 0);
+  const layout = rowTreemap(items.map((item) => item.value));
   return <div className="portfolio-treemap">{items.map((item, index) => {
     const rectangle = layout[index];
     const percentage = total > 0 ? item.value / total * 100 : 0;
@@ -960,6 +960,32 @@ function sliceTreemap(values: number[], x:number, y:number, width:number, height
   }
   const firstHeight = height * ratio;
   return [...sliceTreemap(values.slice(0, split), x, y, width, firstHeight, offset + 1), ...sliceTreemap(values.slice(split), x, y + firstHeight, width, height - firstHeight, offset + 1)];
+}
+
+function rowTreemap(values: number[]): TreemapRect[] {
+  const total = values.reduce((sum, value) => sum + value, 0) || 1;
+  const targetRowValue = total / Math.max(1, Math.ceil(Math.sqrt(values.length)));
+  const rows: number[][] = [];
+  let current: number[] = [];
+  let currentTotal = 0;
+  values.forEach((value, index) => {
+    current.push(value); currentTotal += value;
+    if (currentTotal >= targetRowValue || index === values.length - 1) { rows.push(current); current = []; currentTotal = 0; }
+  });
+  const rectangles: TreemapRect[] = [];
+  let top = 0;
+  rows.forEach((row) => {
+    const rowTotal = row.reduce((sum, value) => sum + value, 0);
+    const rowHeight = rowTotal / total * 100;
+    let left = 0;
+    row.forEach((value) => {
+      const tileWidth = value / rowTotal * 100;
+      rectangles.push({ x:left, y:top, w:tileWidth, h:rowHeight });
+      left += tileWidth;
+    });
+    top += rowHeight;
+  });
+  return rectangles;
 }
 
 function PortfolioQuickCard({ symbol, quote, holding, marketCap, onClose }: { symbol:string; quote?:MarketQuote; holding?:Holding; marketCap?:string; onClose:()=>void }) {

@@ -1632,6 +1632,11 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 .trend-controls { flex-wrap:nowrap; min-width:0; }
 .trend-switch { flex-wrap:nowrap; white-space:nowrap; }
 .trend-switch button { white-space:nowrap; }
+.overview-only .trend-switch { width:100%!important; display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+.overview-only .trend-switch button { min-width:0!important; flex:1 1 0!important; padding-left:6px!important; padding-right:6px!important; }
+.overview-hero .summary-card { padding:12px 16px!important; }
+.overview-hero .summary-main { padding:0!important; }
+.overview-hero .summary-stats { margin-top:10px!important; padding-top:6px!important; }
 .treemap-tile { color:#fff!important; text-shadow:0 1px 2px rgba(0,0,0,.2); }
 .treemap-tile strong { font-weight:850; }.treemap-tile span,.treemap-tile small { color:rgba(255,255,255,.92); }
 .holding-details { position:relative; }

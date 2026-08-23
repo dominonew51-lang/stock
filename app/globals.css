@@ -1574,6 +1574,47 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   .sector-entry-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.quick-stock-card { margin:0 0 12px; grid-template-columns:1fr auto; box-shadow:2px 2px 0 #171717; }.quick-card-holding { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .bottom-nav { width:calc(100% - 16px); border-radius:11px; }.bottom-nav span { display:none; }.bottom-nav strong { font-size:12px; }
 }
+
+/* Portfolio readability and compact analysis controls */
+.trend-controls { flex-wrap:nowrap; min-width:0; }
+.trend-switch { flex-wrap:nowrap; white-space:nowrap; }
+.trend-switch button { white-space:nowrap; }
+.treemap-tile { color:#fff!important; text-shadow:0 1px 2px rgba(0,0,0,.2); }
+.treemap-tile strong { font-weight:850; }.treemap-tile span,.treemap-tile small { color:rgba(255,255,255,.92); }
+.holding-details { position:relative; }
+.delete-holding-btn { grid-column:1/-1; justify-self:end; margin-top:4px; padding:7px 11px; border:1px solid #e8b5b0; border-radius:8px; color:#b42318; background:#fff5f4; font-size:11px; font-weight:700; }
+.delete-holding-btn:hover { border-color:#c2413f; color:#fff; background:#c2413f; }
+@media(max-width:780px){
+  .overview-only .trend-head { align-items:flex-start; }
+  .overview-only .trend-controls { width:100%; flex-direction:row!important; align-items:center; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+  .overview-only .trend-controls::-webkit-scrollbar { display:none; }
+  .overview-only .trend-switch { flex:0 0 auto; display:flex; grid-template-columns:none!important; }
+  .overview-only .trend-switch button { flex:0 0 auto; }
+  .overview-only .trend-controls .segmented { flex:0 0 auto; }
+  .overview-only .mobile-holding-header { grid-template-columns:minmax(0,1.25fr) minmax(76px,.76fr) minmax(82px,.82fr) minmax(64px,.62fr); }
+  .overview-only .holdings-panel:not(.holdings-edit-mode) .holding-row.holding-row-toggle {
+    grid-template-columns:minmax(0,1.25fr) minmax(76px,.76fr) minmax(82px,.82fr) minmax(64px,.62fr);
+    grid-template-areas:"asset value profit price";
+    gap:6px;
+  }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .asset-cell { grid-area:asset; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .position-value { grid-area:value; display:block!important; text-align:right; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit { grid-area:profit; text-align:right; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell { grid-area:price; text-align:right; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .position-value strong,
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit strong,
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > small { font-size:12px!important; font-weight:850!important; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .position-value small { display:block; margin-top:3px; color:#8b8b93; font-size:9px!important; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit > small { display:block!important; margin-top:3px; color:inherit; font-size:10px!important; font-weight:750!important; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > strong { display:none; }
+}
+@media(max-width:420px){
+  .overview-only .mobile-holding-header { font-size:9px; }
+  .overview-only .holdings-panel:not(.holdings-edit-mode) .holding-row.holding-row-toggle { grid-template-columns:minmax(0,1.12fr) minmax(66px,.78fr) minmax(72px,.84fr) minmax(58px,.62fr); padding-left:8px; padding-right:8px; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .position-value strong,
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit strong,
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > small { font-size:11px!important; }
+}
 @media(max-width:380px){
   .us-quote-matrix { grid-template-columns:1fr 1fr; }.us-quote-tile { grid-template-columns:26px minmax(0,1fr); }.us-quote-tile > b { grid-column:2; justify-self:start; }.us-quote-tile > em { display:none; }.ticker-logo { width:26px; height:26px; }.us-tile-name small { display:none; }
 }
@@ -2023,4 +2064,45 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   .overview-hero .trend-switch { grid-auto-flow:row; grid-template-columns:repeat(2,minmax(0,1fr)); }
   .us-quote-tile { min-height:84px; padding:9px; grid-template-columns:30px minmax(0,1fr) auto; }
   .bottom-nav { bottom:max(8px,env(safe-area-inset-bottom)); width:calc(100% - 16px); }
+}
+
+/* Final readability and compact controls */
+.trend-controls { flex-wrap:nowrap; min-width:0; }
+.trend-switch { flex-wrap:nowrap; white-space:nowrap; }
+.trend-switch button { white-space:nowrap; }
+.treemap-tile { color:#fff!important; text-shadow:0 1px 2px rgba(0,0,0,.2); }
+.treemap-tile strong { font-weight:850; }
+.treemap-tile span,.treemap-tile small { color:rgba(255,255,255,.92); }
+.delete-holding-btn { grid-column:1/-1; justify-self:end; margin-top:4px; padding:7px 11px; border:1px solid #e8b5b0; border-radius:8px; color:#b42318; background:#fff5f4; font-size:11px; font-weight:700; }
+.delete-holding-btn:hover { border-color:#c2413f; color:#fff; background:#c2413f; }
+@media(max-width:780px){
+  .overview-only .trend-head { align-items:flex-start; }
+  .overview-only .trend-controls { width:100%; flex-direction:row!important; align-items:center; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+  .overview-only .trend-controls::-webkit-scrollbar { display:none; }
+  .overview-only .trend-switch { flex:0 0 auto; display:flex; grid-template-columns:none!important; }
+  .overview-only .trend-switch button { flex:0 0 auto; }
+  .overview-only .trend-controls .segmented { flex:0 0 auto; }
+  .overview-only .mobile-holding-header { grid-template-columns:minmax(0,1.25fr) minmax(76px,.76fr) minmax(82px,.82fr) minmax(64px,.62fr); }
+  .overview-only .holdings-panel:not(.holdings-edit-mode) .holding-row.holding-row-toggle {
+    grid-template-columns:minmax(0,1.25fr) minmax(76px,.76fr) minmax(82px,.82fr) minmax(64px,.62fr);
+    grid-template-areas:"asset value profit price";
+    gap:6px;
+  }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .asset-cell { grid-area:asset; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .position-value { grid-area:value; display:block!important; text-align:right; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit { grid-area:profit; text-align:right; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell { grid-area:price; text-align:right; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .position-value strong,
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit strong,
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > small { font-size:12px!important; font-weight:850!important; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .position-value small { display:block; margin-top:3px; color:#8b8b93; font-size:9px!important; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit > small { display:block!important; margin-top:3px; color:inherit; font-size:10px!important; font-weight:750!important; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > strong { display:none; }
+}
+@media(max-width:420px){
+  .overview-only .mobile-holding-header { font-size:9px; }
+  .overview-only .holdings-panel:not(.holdings-edit-mode) .holding-row.holding-row-toggle { grid-template-columns:minmax(0,1.12fr) minmax(66px,.78fr) minmax(72px,.84fr) minmax(58px,.62fr); padding-left:8px; padding-right:8px; }
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .position-value strong,
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit strong,
+  .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > small { font-size:11px!important; }
 }

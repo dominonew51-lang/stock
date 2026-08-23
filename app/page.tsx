@@ -49,7 +49,14 @@ function shortFundName(name: string) {
 function localizedAssetName(symbol: string, name: string, market: Market) {
   if (market === "美股") return symbol.trim().toUpperCase();
   if (market === "基金") return shortFundName(name);
-  return name;
+  const code = symbol.trim().toUpperCase();
+  const knownName: Record<string, string> = {
+    "601985": "中国核电", "159696": "纳指ETF", "515450": "红利低波ETF",
+    "600036": "招商银行", "000922": "中证红利", "000688": "科创50",
+  };
+  if (knownName[code]) return knownName[code];
+  const clean = String(name || "").trim();
+  return !clean || clean === code || /^[0-9.]+$/.test(clean) ? `A股 ${code}` : clean.replace(/股份有限公司|有限公司/g, "");
 }
 const quoteBook: Record<string, { price: number; currency: "$" | "¥"; market: Market; change: number }> = {
   QQQ: { price: 573.42, currency: "$", market: "美股", change: 0.48 },
@@ -346,7 +353,6 @@ export default function Home() {
   const [page, setPage] = useState<PageKey>("overview");
   const [range, setRange] = useState("1年");
   const [trendMode, setTrendMode] = useState<AnalysisMode>("return");
-  const [calendarMode, setCalendarMode] = useState<"year" | "month" | "day">("month");
   const [query, setQuery] = useState("");
   const [bucketFilter, setBucketFilter] = useState<"全部" | AssetBucket>("全部");
   const [customHoldings, setCustomHoldings] = useState<Holding[]>([]);
@@ -375,7 +381,6 @@ export default function Home() {
   const [profile, setProfile] = useState<Profile>({ name: "", target: "12", risk: "均衡型" });
   const [assetForm, setAssetForm] = useState({ symbol: "", name: "", market: "" as Market | "", category: "美股" as AssetBucket, avgCost: "", quantity: "", holdingDays: "" });
   const [assetLookup, setAssetLookup] = useState<{ state: "idle" | "loading" | "success" | "error"; message: string }>({ state: "idle", message: "" });
-  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
   const [usWatchlist, setUsWatchlist] = useState<string[]>(defaultUSWatchlist);
   const [usSectorLists, setUsSectorLists] = useState<Record<string, string[]>>(defaultUSSectors);
   const [usQuotes, setUsQuotes] = useState<Record<string, USQuote>>({});
@@ -657,8 +662,6 @@ export default function Home() {
   }, [cloudReady, historyReady, totalCost, totalValue]);
 
   const portfolioTrend = useMemo(() => buildPortfolioTrend(portfolioHistory, range, totalValue, totalCost), [portfolioHistory, range, totalCost, totalValue]);
-  const returnCalendar = useMemo(() => buildReturnCalendar(portfolioHistory, calendarYear, totalValue, totalCost), [calendarYear, portfolioHistory, totalCost, totalValue]);
-  const returnYears = useMemo(() => buildYearCalendar(portfolioHistory, totalValue, totalCost), [portfolioHistory, totalCost, totalValue]);
   const monthTrend = useMemo(() => buildPortfolioTrend(portfolioHistory, "1月", totalValue, totalCost), [portfolioHistory, totalCost, totalValue]);
   const latestReturn = portfolioTrend.returns[portfolioTrend.returns.length - 1] || 0;
   const currentMonth = localDateKey().slice(0, 7);
@@ -711,6 +714,13 @@ export default function Home() {
     });
     setCustomHoldings(updated);
     window.localStorage.setItem("hengce-custom-holdings", JSON.stringify(updated));
+  }
+
+  function deleteHolding(symbol: string) {
+    const updated = customHoldings.filter((holding) => holding.symbol !== symbol && holding.sourceSymbol !== symbol);
+    setCustomHoldings(updated);
+    window.localStorage.setItem("hengce-custom-holdings", JSON.stringify(updated));
+    setSelectedOverviewSymbol((current) => current === symbol ? null : current);
   }
 
   function saveProfile(event: React.FormEvent<HTMLFormElement>) {
@@ -888,8 +898,7 @@ export default function Home() {
         </section>
         <section className="panel overview-heatmap-section"><div className="section-inline-head"><div><h2>持仓热力图</h2><p>面积按持仓市值，颜色按今日涨跌；点击查看持仓详情</p></div></div><HoldingsHeatmap holdings={allHoldings} onSelect={setSelectedOverviewSymbol} includeAll /></section>
         {selectedOverviewHolding && <PortfolioQuickCard symbol={selectedOverviewHolding.symbol} quote={remoteQuotes[selectedOverviewHolding.symbol]} holding={selectedOverviewHolding} onClose={()=>setSelectedOverviewSymbol(null)} />}
-        <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} />
-        <ReturnCalendar months={returnCalendar} years={returnYears} year={calendarYear} onYearChange={setCalendarYear} mode={calendarMode} onModeChange={setCalendarMode} />
+        <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} onDelete={deleteHolding} />
       </>}
       {page === "ashare" && <section className="market-page-content"><div className="market-page-intro"><div><span>CHINA MARKET</span><h2>A股行情</h2><p>重要指数与持仓相关市场信息</p></div></div><CnMarketPanel data={cnMarket} loading={cnMarketLoading} expandedByDefault /></section>}
       {page === "us" && <USMarketPage watchlist={usWatchlist} sectorLists={usSectorLists} quotes={usQuotes} holdings={allHoldings} onWatchlistChange={setUsWatchlist} onSectorListsChange={setUsSectorLists} />}
@@ -916,10 +925,11 @@ function HoldingsHeatmap({ holdings, onSelect, includeAll = false }: { holdings:
   const total = items.reduce((sum, item) => sum + item.value, 0);
   if (!items.length) return <div className="empty-state">暂无{includeAll ? "" : "美股"}持仓，添加后会在这里显示组合热力图。</div>;
   return <div className="portfolio-treemap">{items.map((item) => {
-    const intensity = Math.min(.85, .22 + Math.abs(item.change || 0) / 8);
+    const intensity = Math.min(1, .35 + Math.abs(item.change || 0) / 8);
     const positive = (item.change || 0) >= 0;
     const percentage = total > 0 ? item.value / total * 100 : 0;
-    return <button key={item.symbol} className="treemap-tile" style={{ flexGrow: Math.max(item.value, 1), flexBasis:`${Math.max(112, Math.sqrt(Math.max(percentage, 1)) * 42)}px`, background: positive ? `rgba(193, 57, 57, ${intensity})` : `rgba(47, 121, 74, ${intensity})` }} onClick={() => onSelect(item.symbol)}><strong>{item.symbol}</strong><span>{item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%</span><small>¥{item.value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })} · {percentage.toFixed(1)}%</small></button>;
+    const background = positive ? `hsl(0 68% ${Math.max(34, 54 - intensity * 16)}%)` : `hsl(151 47% ${Math.max(34, 54 - intensity * 16)}%)`;
+    return <button key={item.symbol} className="treemap-tile" style={{ flexGrow: Math.max(percentage, 1), flexBasis:`${Math.max(112, Math.sqrt(Math.max(percentage, 1)) * 42)}px`, background, color:"#fff" }} onClick={() => onSelect(item.symbol)}><strong>{item.name || item.symbol}</strong><span>{item.symbol} · {item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%</span><small>¥{item.value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })} · {percentage.toFixed(1)}%</small></button>;
   })}</div>;
 }
 
@@ -1029,7 +1039,7 @@ function ReturnCalendar({ months, years, year, onYearChange, mode, onModeChange 
   </section>;
 }
 
-function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErrors, onLookup, onSaveAll }: { holdings: Holding[]; allCount: number; filter: "全部" | AssetBucket; setFilter: (value: "全部" | AssetBucket) => void; quotes: Record<string, MarketQuote>; quoteErrors: Record<string, string>; onLookup:(symbol:string)=>Promise<MarketQuote | null>; onSaveAll:(edits:{item:Holding;originalSymbol:string}[])=>void }) {
+function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErrors, onLookup, onSaveAll, onDelete }: { holdings: Holding[]; allCount: number; filter: "全部" | AssetBucket; setFilter: (value: "全部" | AssetBucket) => void; quotes: Record<string, MarketQuote>; quoteErrors: Record<string, string>; onLookup:(symbol:string)=>Promise<MarketQuote | null>; onSaveAll:(edits:{item:Holding;originalSymbol:string}[])=>void; onDelete:(symbol:string)=>void }) {
   const blankHolding = (): Holding => ({ symbol:"", name:"", market:"美股", category:"美股", price:0, currency:"$", change:0, value:0, cost:0, avgCost:0, quantity:0, holdingDays:0, weight:0, spark:[35,35,35,35,35,35,35,35,35,35] });
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Holding>>({});
@@ -1108,7 +1118,7 @@ function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErr
       <div className="holdings-actions"><span className="quote-status"><i className="status-dot" />行情每 20 秒刷新 · 已更新 {Object.keys(quotes).length} 项</span><select className="bucket-filter" value={filter} onChange={(event)=>setFilter(event.target.value as "全部" | AssetBucket)} aria-label="按资产分类筛选"><option value="全部">全部分类</option>{assetBuckets.map((item)=><option key={item}>{item}</option>)}</select><span className="sort-controls"><select value={sortKey} onChange={(event)=>setSortKey(event.target.value as typeof sortKey)} aria-label="持仓排序方式"><option value="default">默认排序</option><option value="return">按收益率</option><option value="profit">按绝对收益</option><option value="value">按持仓市值</option></select><button onClick={()=>setSortDirection((current)=>current === "desc" ? "asc" : "desc")} disabled={sortKey === "default"} aria-label="切换排序方向">{sortDirection === "desc" ? "↓" : "↑"}</button></span>{editing ? <span className="edit-mode-actions"><button onClick={cancelEdit}>取消</button><button onClick={()=>void saveAll()}>保存全部</button></span> : <button className="portfolio-edit-toggle" onClick={beginEdit}>✎ 编辑持仓</button>}</div>
     </div>
     {editError && <div className="portfolio-edit-error">{editError}</div>}
-    {!editing && <div className="mobile-holding-header"><span>持仓</span><span>收益率</span><span>今日涨跌</span></div>}
+    {!editing && <div className="mobile-holding-header"><span>资产</span><span>持仓市值</span><span>累计盈亏</span><span>股价</span></div>}
     <div className="holding-table">
       <div className="holding-row holding-header">{editing ? <><span>资产信息</span><span>持仓数据</span><span>实时结果</span></> : <><span>资产</span><span>持仓（市值）</span><span>收益率</span><span>股价</span></>}</div>
       {editing ? <>{sortedHoldings.map((item)=>editableRow(drafts[item.symbol] ?? item, item.symbol))}{editableRow(newDraft, "__new__", true)}</> : sortedHoldings.map((item)=>{
@@ -1123,7 +1133,7 @@ function HoldingsTable({ holdings, allCount, filter, setFilter, quotes, quoteErr
             <span className={`cumulative-profit ${hasQuote ? (returnRate>=0?"up":"down") : ""}`}><strong>{hasQuote ? `${returnRate>=0?"+":""}${returnRate.toFixed(2)}%` : "—"}</strong><small>{hasQuote ? `${item.value>=item.cost?"+":""}¥${(item.value-item.cost).toLocaleString("zh-CN")}` : "等待行情"}</small></span>
             <span className="market-price-cell"><strong>{hasQuote ? `${item.currency}${item.price.toLocaleString("zh-CN")}` : "—"}</strong><small className={item.change >= 0 ? "up" : "down"}>{hasQuote ? `${item.change >= 0 ? "+" : ""}${item.change.toFixed(2)}%` : quoteErrors[item.symbol] || "等待行情"}</small></span>
           </button>
-          {expanded && <div className="holding-details" id={`holding-details-${item.symbol}`}><div><span>资产分类</span><strong>{item.category}</strong></div><div><span>持仓市值</span><strong>{hasQuote ? `¥${item.value.toLocaleString("zh-CN")}` : "—"}</strong></div><div><span>累计收益</span><strong className={hasQuote ? (returnRate>=0?"up":"down") : ""}>{hasQuote ? `${item.value>=item.cost?"+":""}¥${(item.value-item.cost).toLocaleString("zh-CN")}` : "—"}</strong></div><div><span>当前价格</span><strong>{hasQuote ? `${item.currency}${item.price.toLocaleString("zh-CN")}` : "—"}</strong></div><div><span>持仓均价</span><strong>{item.currency}{item.avgCost.toLocaleString("zh-CN", {maximumFractionDigits:6})}</strong></div><div><span>总成本</span><strong>¥{item.cost.toLocaleString("zh-CN")}</strong></div><div><span>持仓数量</span><strong>{item.quantity.toLocaleString("zh-CN")} {item.market === "基金" ? "份" : "股"}</strong></div></div>}
+          {expanded && <div className="holding-details" id={`holding-details-${item.symbol}`}><div><span>资产分类</span><strong>{item.category}</strong></div><div><span>持仓市值</span><strong>{hasQuote ? `¥${item.value.toLocaleString("zh-CN")}` : "—"}</strong></div><div><span>累计收益</span><strong className={hasQuote ? (returnRate>=0?"up":"down") : ""}>{hasQuote ? `${item.value>=item.cost?"+":""}¥${(item.value-item.cost).toLocaleString("zh-CN")}` : "—"}</strong></div><div><span>当前价格</span><strong>{hasQuote ? `${item.currency}${item.price.toLocaleString("zh-CN")}` : "—"}</strong></div><div><span>持仓均价</span><strong>{item.currency}{item.avgCost.toLocaleString("zh-CN", {maximumFractionDigits:6})}</strong></div><div><span>总成本</span><strong>¥{item.cost.toLocaleString("zh-CN")}</strong></div><div><span>持仓数量</span><strong>{item.quantity.toLocaleString("zh-CN")} {item.market === "基金" ? "份" : "股"}</strong></div><button type="button" className="delete-holding-btn" onClick={() => onDelete(item.symbol)}>删除持仓</button></div>}
         </div>;
       })}
     </div>

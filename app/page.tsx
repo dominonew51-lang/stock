@@ -898,7 +898,6 @@ export default function Home() {
         </section>
         <section className="panel overview-heatmap-section"><div className="section-inline-head"><div><h2>持仓热力图</h2><p>面积按持仓市值，颜色按今日涨跌；点击查看持仓详情</p></div></div><HoldingsHeatmap holdings={allHoldings} onSelect={setSelectedOverviewSymbol} includeAll /></section>
         {selectedOverviewHolding && <PortfolioQuickCard symbol={selectedOverviewHolding.symbol} quote={remoteQuotes[selectedOverviewHolding.symbol]} holding={selectedOverviewHolding} onClose={()=>setSelectedOverviewSymbol(null)} />}
-        <HoldingsTable holdings={filteredHoldings} allCount={allHoldings.length} filter={bucketFilter} setFilter={setBucketFilter} quotes={remoteQuotes} quoteErrors={quoteErrors} onLookup={lookupAssetCode} onSaveAll={saveHoldings} onDelete={deleteHolding} />
       </>}
       {page === "ashare" && <section className="market-page-content"><div className="market-page-intro"><div><span>CHINA MARKET</span><h2>A股行情</h2><p>重要指数与持仓相关市场信息</p></div></div><CnMarketPanel data={cnMarket} loading={cnMarketLoading} expandedByDefault /></section>}
       {page === "us" && <USMarketPage watchlist={usWatchlist} sectorLists={usSectorLists} quotes={usQuotes} holdings={allHoldings} onWatchlistChange={setUsWatchlist} onSectorListsChange={setUsSectorLists} />}
@@ -924,13 +923,43 @@ function HoldingsHeatmap({ holdings, onSelect, includeAll = false }: { holdings:
   const items = holdings.filter((item) => (includeAll || item.market === "美股") && item.value > 0).sort((a, b) => b.value - a.value);
   const total = items.reduce((sum, item) => sum + item.value, 0);
   if (!items.length) return <div className="empty-state">暂无{includeAll ? "" : "美股"}持仓，添加后会在这里显示组合热力图。</div>;
-  return <div className="portfolio-treemap">{items.map((item) => {
-    const intensity = Math.min(1, .35 + Math.abs(item.change || 0) / 8);
-    const positive = (item.change || 0) >= 0;
+  const layout = sliceTreemap(items.map((item) => item.value), 0, 0, 100, 100, 0);
+  return <div className="portfolio-treemap">{items.map((item, index) => {
+    const rectangle = layout[index];
     const percentage = total > 0 ? item.value / total * 100 : 0;
-    const background = positive ? `hsl(0 68% ${Math.max(34, 54 - intensity * 16)}%)` : `hsl(151 47% ${Math.max(34, 54 - intensity * 16)}%)`;
-    return <button key={item.symbol} className="treemap-tile" style={{ flexGrow: Math.max(percentage, 1), flexBasis:`${Math.max(112, Math.sqrt(Math.max(percentage, 1)) * 42)}px`, background, color:"#fff" }} onClick={() => onSelect(item.symbol)}><strong>{item.name || item.symbol}</strong><span>{item.symbol} · {item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%</span><small>¥{item.value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })} · {percentage.toFixed(1)}%</small></button>;
+    const profit = item.value - item.cost;
+    const historyRate = item.cost > 0 ? profit / item.cost * 100 : 0;
+    const intensity = Math.min(1, .28 + Math.abs(historyRate) / 18);
+    const positive = historyRate >= 0;
+    const background = positive ? `hsl(0 68% ${Math.max(30, 58 - intensity * 22)}%)` : `hsl(151 47% ${Math.max(30, 58 - intensity * 22)}%)`;
+    const name = localizedAssetName(item.symbol, item.name, item.market);
+    return <button key={item.symbol} className="treemap-tile" style={{ left:`${rectangle.x}%`, top:`${rectangle.y}%`, width:`${rectangle.w}%`, height:`${rectangle.h}%`, background, color:"#fff" }} onClick={() => onSelect(item.symbol)} aria-label={`查看${name}持仓详情`}><strong>{name}</strong><span>¥{item.value.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}</span><small>{percentage.toFixed(1)}% · {historyRate >= 0 ? "+" : ""}{historyRate.toFixed(1)}%</small></button>;
   })}</div>;
+}
+
+type TreemapRect = { x:number; y:number; w:number; h:number };
+
+function sliceTreemap(values: number[], x:number, y:number, width:number, height:number, offset:number): TreemapRect[] {
+  if (!values.length) return [];
+  if (values.length === 1) return [{ x, y, w: width, h: height }];
+  const total = values.reduce((sum, value) => sum + value, 0) || 1;
+  let running = 0;
+  let split = 1;
+  let best = Number.POSITIVE_INFINITY;
+  for (let index = 1; index < values.length; index += 1) {
+    running += values[index - 1];
+    const ratio = running / total;
+    const score = Math.abs(ratio - .5);
+    if (score < best) { best = score; split = index; }
+  }
+  const firstTotal = values.slice(0, split).reduce((sum, value) => sum + value, 0);
+  const ratio = firstTotal / total;
+  if ((offset % 2 === 0 && width >= height) || (offset % 2 === 1 && width < height)) {
+    const firstWidth = width * ratio;
+    return [...sliceTreemap(values.slice(0, split), x, y, firstWidth, height, offset + 1), ...sliceTreemap(values.slice(split), x + firstWidth, y, width - firstWidth, height, offset + 1)];
+  }
+  const firstHeight = height * ratio;
+  return [...sliceTreemap(values.slice(0, split), x, y, width, firstHeight, offset + 1), ...sliceTreemap(values.slice(split), x, y + firstHeight, width, height - firstHeight, offset + 1)];
 }
 
 function PortfolioQuickCard({ symbol, quote, holding, marketCap, onClose }: { symbol:string; quote?:MarketQuote; holding?:Holding; marketCap?:string; onClose:()=>void }) {

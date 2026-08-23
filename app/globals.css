@@ -839,6 +839,59 @@ body {
   .overview-only .allocation-pie { width:170px; }
 }
 
+/* Strict value-weighted portfolio treemap (final precedence) */
+.portfolio-treemap { position:relative!important; display:block!important; min-height:360px!important; height:360px!important; overflow:hidden!important; border:1px solid #d9d9d9!important; background:#f5f5f5!important; }
+.portfolio-treemap .treemap-tile { position:absolute!important; min-width:0!important; min-height:0!important; margin:0!important; padding:clamp(7px,1.2vw,15px)!important; display:flex!important; flex-direction:column!important; justify-content:center!important; align-items:center!important; gap:4px!important; border:2px solid #fff!important; border-radius:0!important; box-shadow:none!important; overflow:hidden!important; text-align:center!important; transition:filter .15s ease,z-index .15s ease; }
+.portfolio-treemap .treemap-tile:hover { z-index:2; filter:brightness(1.08); transform:none; box-shadow:inset 0 0 0 2px rgba(255,255,255,.9); }
+.portfolio-treemap .treemap-tile strong,.portfolio-treemap .treemap-tile span,.portfolio-treemap .treemap-tile small { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.portfolio-treemap .treemap-tile strong { font-size:clamp(12px,1.45vw,20px); }
+.portfolio-treemap .treemap-tile span { font-size:clamp(10px,1.1vw,15px); font-weight:800; }
+.portfolio-treemap .treemap-tile small { font-size:clamp(9px,.9vw,12px); font-weight:700; }
+@media(max-width:780px){ .portfolio-treemap { height:300px; min-height:300px; } .portfolio-treemap .treemap-tile { padding:6px; gap:2px; } .portfolio-treemap .treemap-tile strong { font-size:clamp(11px,3.2vw,16px); } .portfolio-treemap .treemap-tile span { font-size:clamp(9px,2.7vw,13px); } .portfolio-treemap .treemap-tile small { font-size:clamp(8px,2.2vw,11px); } }
+
+/* Strict value-weighted portfolio treemap */
+.portfolio-treemap {
+  position:relative;
+  display:block;
+  min-height:360px;
+  height:360px;
+  overflow:hidden;
+  border:1px solid #d9d9d9;
+  background:#f5f5f5;
+}
+.portfolio-treemap .treemap-tile {
+  position:absolute;
+  min-width:0;
+  min-height:0;
+  margin:0;
+  padding:clamp(7px,1.2vw,15px);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  gap:4px;
+  border:2px solid #fff;
+  border-radius:0;
+  box-shadow:none;
+  overflow:hidden;
+  text-align:center;
+  transition:filter .15s ease, z-index .15s ease;
+}
+.portfolio-treemap .treemap-tile:hover { z-index:2; filter:brightness(1.08); transform:none; box-shadow:inset 0 0 0 2px rgba(255,255,255,.9); }
+.portfolio-treemap .treemap-tile strong,
+.portfolio-treemap .treemap-tile span,
+.portfolio-treemap .treemap-tile small { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.portfolio-treemap .treemap-tile strong { font-size:clamp(12px,1.45vw,20px); }
+.portfolio-treemap .treemap-tile span { font-size:clamp(10px,1.1vw,15px); font-weight:800; }
+.portfolio-treemap .treemap-tile small { font-size:clamp(9px, .9vw, 12px); font-weight:700; }
+@media(max-width:780px){
+  .portfolio-treemap { height:300px; min-height:300px; }
+  .portfolio-treemap .treemap-tile { padding:6px; gap:2px; }
+  .portfolio-treemap .treemap-tile strong { font-size:clamp(11px,3.2vw,16px); }
+  .portfolio-treemap .treemap-tile span { font-size:clamp(9px,2.7vw,13px); }
+  .portfolio-treemap .treemap-tile small { font-size:clamp(8px,2.2vw,11px); }
+}
+
 /* Notion-inspired minimal document theme */
 :root {
   --bg:#f7f6f3;
@@ -1615,6 +1668,16 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit strong,
   .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > small { font-size:11px!important; }
 }
+
+/* Strict value-weighted portfolio treemap (EOF precedence) */
+.portfolio-treemap { position:relative; display:block; min-height:360px; height:360px; overflow:hidden; border:1px solid #d9d9d9; background:#f5f5f5; }
+.portfolio-treemap .treemap-tile { position:absolute; min-width:0; min-height:0; margin:0; padding:clamp(7px,1.2vw,15px); display:flex; flex-direction:column; justify-content:center; align-items:center; gap:4px; border:2px solid #fff; border-radius:0; box-shadow:none; overflow:hidden; text-align:center; transition:filter .15s ease,z-index .15s ease; }
+.portfolio-treemap .treemap-tile:hover { z-index:2; filter:brightness(1.08); transform:none; box-shadow:inset 0 0 0 2px rgba(255,255,255,.9); }
+.portfolio-treemap .treemap-tile strong,.portfolio-treemap .treemap-tile span,.portfolio-treemap .treemap-tile small { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.portfolio-treemap .treemap-tile strong { font-size:clamp(12px,1.45vw,20px); }
+.portfolio-treemap .treemap-tile span { font-size:clamp(10px,1.1vw,15px); font-weight:800; }
+.portfolio-treemap .treemap-tile small { font-size:clamp(9px,.9vw,12px); font-weight:700; }
+@media(max-width:780px){ .portfolio-treemap { height:300px; min-height:300px; } .portfolio-treemap .treemap-tile { padding:6px; gap:2px; } .portfolio-treemap .treemap-tile strong { font-size:clamp(11px,3.2vw,16px); } .portfolio-treemap .treemap-tile span { font-size:clamp(9px,2.7vw,13px); } .portfolio-treemap .treemap-tile small { font-size:clamp(8px,2.2vw,11px); } }
 @media(max-width:380px){
   .us-quote-matrix { grid-template-columns:1fr 1fr; }.us-quote-tile { grid-template-columns:26px minmax(0,1fr); }.us-quote-tile > b { grid-column:2; justify-self:start; }.us-quote-tile > em { display:none; }.ticker-logo { width:26px; height:26px; }.us-tile-name small { display:none; }
 }

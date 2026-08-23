@@ -35,6 +35,7 @@ function shortFundName(name: string) {
   const manager = managers.find((item) => clean.startsWith(item)) ?? "";
   if (/纳斯达克|纳指/.test(clean)) return `${manager}纳指` || "纳指基金";
   if (/红利低波/.test(clean)) return `${manager}红利低波` || "红利低波";
+  if (/科创50/.test(clean)) return `${manager}科创50` || "科创50";
   if (/国开债/.test(clean)) return `${manager}国开债` || "国开债";
   if (/红利ETF/i.test(clean)) return `${manager}红利ETF` || "红利ETF";
   const simplified = clean

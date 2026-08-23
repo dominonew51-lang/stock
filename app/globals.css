@@ -1637,6 +1637,9 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 .overview-only .overview-hero .trend-switch { display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; width:100%!important; }
 .overview-only .overview-hero .trend-switch button { width:100%!important; flex:none!important; }
 .portfolio-treemap .treemap-tile-compact strong { white-space:normal!important; overflow:visible!important; text-overflow:clip!important; overflow-wrap:anywhere!important; word-break:break-word!important; line-height:1.15!important; }
+.portfolio-treemap .treemap-tile strong { font-size:clamp(10px,1.15vw,16px)!important; font-weight:600!important; letter-spacing:-.02em; }
+.portfolio-treemap .treemap-tile span { font-size:clamp(9px,.95vw,13px)!important; font-weight:600!important; }
+.portfolio-treemap .treemap-tile small { font-size:clamp(8px,.8vw,11px)!important; font-weight:550!important; }
 .overview-only .trend-switch { width:100%!important; display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; }
 .overview-only .trend-switch button { min-width:0!important; flex:1 1 0!important; padding-left:6px!important; padding-right:6px!important; }
 .overview-hero .summary-card { padding:12px 16px!important; }

@@ -397,6 +397,13 @@ export default function Home() {
     return [...symbols].filter(Boolean).join(",");
   }, [customHoldings, usSectorLists, usWatchlist, useDemoHoldings]);
 
+  const marketBySymbol = useMemo(() => {
+    const result: Record<string, Market> = {};
+    const source = useDemoHoldings ? initialHoldings : [];
+    [...source, ...customHoldings].forEach((item) => { result[item.symbol.trim().toUpperCase()] = item.market; });
+    return result;
+  }, [customHoldings, useDemoHoldings]);
+
   useEffect(() => {
     if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
   }, []);
@@ -429,34 +436,53 @@ export default function Home() {
 
   useEffect(() => {
     if (!quoteCodes) return;
+    try {
+      const cached = JSON.parse(window.localStorage.getItem("hengce-quotes-cache") || "null") as { quotes?: Record<string, MarketQuote> } | null;
+      if (cached?.quotes) { setRemoteQuotes((current) => ({ ...cached.quotes, ...current })); setUsQuotes((current) => ({ ...cached.quotes, ...current })); }
+    } catch { /* 缓存损坏时直接走实时请求 */ }
     let controller: AbortController | null = null;
     const refreshQuotes = () => {
       controller?.abort();
       controller = new AbortController();
-      fetch(`/api/assets?codes=${encodeURIComponent(quoteCodes)}`, { signal: controller.signal, cache: "no-store" })
+      const hour = new Date().getHours();
+      let cachedSymbols = new Set<string>();
+      try { const stored = JSON.parse(window.localStorage.getItem("hengce-quotes-cache") || "null") as { quotes?: Record<string, MarketQuote> } | null; cachedSymbols = new Set(Object.keys(stored?.quotes || {})); } catch { /* ignore */ }
+      const activeCodes = quoteCodes.split(",").filter((code) => {
+        const market = marketBySymbol[code] || (/^[A-Z]/.test(code) ? "美股" : "A股");
+        if (market === "美股") return true;
+        if (market === "基金") return hour < 20 || !cachedSymbols.has(code);
+        return hour < 15 || !cachedSymbols.has(code);
+      });
+      if (!activeCodes.length) return;
+      fetch(`/api/assets?codes=${encodeURIComponent(activeCodes.join(","))}`, { signal: controller.signal, cache: "no-store" })
         .then((response) => response.json())
         .then((rawPayload) => {
           const payload = rawPayload as { quotes?: Record<string, MarketQuote>; errors?: Record<string, string> };
-          if (payload.quotes) { setRemoteQuotes((current) => ({ ...current, ...payload.quotes })); setUsQuotes((current) => ({ ...current, ...payload.quotes })); }
+          if (payload.quotes) { setRemoteQuotes((current) => ({ ...current, ...payload.quotes })); setUsQuotes((current) => ({ ...current, ...payload.quotes })); window.localStorage.setItem("hengce-quotes-cache", JSON.stringify({ quotes: payload.quotes, savedAt: Date.now() })); }
           setQuoteErrors(payload.errors ?? {});
         })
         .catch(() => { /* 保留上一次成功行情 */ });
     };
     refreshQuotes();
-    const refreshTimer = window.setInterval(refreshQuotes, 20000);
+    const refreshTimer = window.setInterval(refreshQuotes, Object.values(marketBySymbol).some((market) => market === "美股") || usWatchlist.length > 0 ? 60000 : 300000);
     return () => { window.clearInterval(refreshTimer); controller?.abort(); };
-  }, [quoteCodes]);
+  }, [quoteCodes, marketBySymbol, usWatchlist.length]);
 
   useEffect(() => {
     let controller: AbortController | null = null;
     let timer: number | undefined;
+    try { const cached = JSON.parse(window.localStorage.getItem("hengce-cn-market-cache") || "null") as CnMarketResponse | null; if (cached?.items) setCnMarket(cached); } catch { /* ignore */ }
     const refresh = () => {
+      const hour = new Date().getHours();
+      let hasCache = false;
+      try { const cached = JSON.parse(window.localStorage.getItem("hengce-cn-market-cache") || "null") as CnMarketResponse | null; hasCache = Boolean(cached?.items && Object.keys(cached.items).length); } catch { /* ignore */ }
+      if (hour >= 15 && hasCache) return;
       controller?.abort(); controller = new AbortController(); setCnMarketLoading(true);
       const url = `/api/cn-market?codes=${encodeURIComponent(todayMarketCodes.join(","))}&dividendCodes=${encodeURIComponent(todayMarketCodes.join(","))}`;
-      fetch(url, { signal: controller.signal, cache: "no-store" }).then((response) => response.json()).then((payload) => setCnMarket(payload as CnMarketResponse)).catch(() => undefined).finally(() => setCnMarketLoading(false));
+      fetch(url, { signal: controller.signal, cache: "no-store" }).then((response) => response.json()).then((payload) => { const next = payload as CnMarketResponse; setCnMarket(next); window.localStorage.setItem("hengce-cn-market-cache", JSON.stringify(next)); }).catch(() => undefined).finally(() => setCnMarketLoading(false));
     };
     refresh();
-    const schedule = () => { timer = window.setTimeout(() => { refresh(); schedule(); }, 20000); };
+    const schedule = () => { timer = window.setTimeout(() => { refresh(); schedule(); }, new Date().getHours() >= 15 ? 300000 : 20000); };
     schedule();
     const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
     document.addEventListener("visibilitychange", onVisible);

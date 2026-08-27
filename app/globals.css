@@ -1945,14 +1945,14 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 
 /* Clear, grouped portfolio editing */
 .holdings-edit-mode .holding-header {
-  grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,.95fr);
+  grid-template-columns:repeat(2,minmax(0,1fr));
 }
 .overview-only .holding-row.row-editing {
-  min-height:126px!important;
-  padding:13px 14px;
+  min-height:96px!important;
+  padding:8px 10px;
   display:grid;
-  grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,.95fr);
-  gap:12px;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
   align-items:stretch;
   border:1px solid #deddd9;
   border-radius:8px;
@@ -1960,13 +1960,13 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 }
 .edit-group {
   min-width:0;
-  padding:10px;
+  padding:7px 8px;
   border:1px solid #ededeb;
   border-radius:7px;
   background:#fafafa;
 }
 .edit-group-title {
-  margin-bottom:8px;
+  margin-bottom:5px;
   display:block;
   color:#787774;
   font-size:10px;
@@ -1975,7 +1975,7 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 }
 .edit-group label { display:block; min-width:0; }
 .edit-group label > small {
-  margin:0 0 5px!important;
+  margin:0 0 3px!important;
   display:block;
   color:#8d8c88!important;
   font-size:9px!important;
@@ -1986,7 +1986,7 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 .edit-result { background:#f7faf8; }
 .edit-number-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .edit-cost-note,.inline-lookup-hint {
-  margin-top:8px!important;
+  margin-top:5px!important;
   display:block;
   overflow:hidden;
   color:#787774!important;
@@ -2013,12 +2013,13 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 
 @media(max-width:780px){
   .overview-only .holding-row.row-editing {
-    padding:10px;
-    grid-template-columns:1fr;
-    gap:9px;
-    border-radius:11px;
+    min-height:86px!important;
+    padding:7px;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:6px;
+    border-radius:8px;
   }
-  .edit-group { padding:11px; }
+  .edit-group { padding:6px; }
   .row-editing .inline-asset-fields { grid-column:auto; grid-template-columns:1fr 1fr; }
   .row-editing .market-price-cell { grid-column:auto; padding:0; border:0; }
   .edit-result .inline-position-summary { grid-column:auto; }
@@ -2026,8 +2027,8 @@ button:focus-visible,input:focus-visible,select:focus-visible {
 }
 
 @media(max-width:420px){
-  .edit-number-grid,.row-editing .inline-asset-fields { grid-template-columns:1fr; }
-  .edit-cost-note,.inline-lookup-hint { white-space:normal; }
+  .edit-number-grid,.row-editing .inline-asset-fields { grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; }
+  .edit-cost-note,.inline-lookup-hint { white-space:nowrap; }
 }
 
 /* Compact mobile holdings: name, return rate and today's move */

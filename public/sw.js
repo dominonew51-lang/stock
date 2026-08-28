@@ -1,4 +1,4 @@
-const CACHE_NAME = "minimalism-shell-v2";
+const CACHE_NAME = "minimalism-shell-v3";
 const SHELL = ["/", "/manifest.webmanifest", "/minimalism-icon.svg", "/minimalism-icon-192.png", "/minimalism-icon-512.png"];
 
 self.addEventListener("install", (event) => {

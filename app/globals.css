@@ -1687,6 +1687,51 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > small { font-size:11px!important; }
 }
 
+/* Mobile editing focus mode: keep only the two tasks required to finish an edit. */
+.holdings-edit-mode .holdings-actions { margin-left:auto; }
+.holdings-edit-mode .edit-mode-actions { display:flex; gap:8px; }
+.holdings-edit-mode .edit-mode-actions button { min-width:88px; min-height:40px; font-size:12px; }
+.holdings-edit-mode .holdings-head > div:first-child p { color:#787774; }
+@media(max-width:780px){
+  .holdings-edit-mode.holdings-panel { margin-top:10px; }
+  .holdings-edit-mode .holdings-head {
+    min-height:56px;
+    padding:8px 2px 9px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .holdings-edit-mode .holdings-head > div:first-child { min-width:0; }
+  .holdings-edit-mode .holdings-head h2 { font-size:16px; line-height:1.2; }
+  .holdings-edit-mode .holdings-head > div:first-child p { display:none; }
+  .holdings-edit-mode .holdings-actions { width:auto; margin:0; display:block; }
+  .holdings-edit-mode .edit-mode-actions { width:auto; display:flex; gap:6px; }
+  .holdings-edit-mode .edit-mode-actions button {
+    min-width:72px;
+    min-height:44px;
+    padding:0 10px;
+    border-radius:8px;
+    font-size:12px;
+  }
+  .holdings-edit-mode .holding-table { gap:6px; }
+  .overview-only .holdings-edit-mode .holding-row.row-editing {
+    min-height:0!important;
+    padding:7px!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:6px!important;
+    border-radius:8px;
+  }
+  .holdings-edit-mode .edit-group { padding:6px 7px; }
+  .holdings-edit-mode .edit-group-title { margin-bottom:3px; font-size:9px; }
+  .holdings-edit-mode .edit-group label > small { margin-bottom:2px!important; font-size:8px!important; }
+  .holdings-edit-mode .inline-field,.holdings-edit-mode .inline-select { height:40px; padding:0 8px; font-size:16px; }
+  .holdings-edit-mode .edit-cost-note,.holdings-edit-mode .inline-lookup-hint { margin-top:3px!important; font-size:9px!important; }
+}
+@media(max-width:360px){
+  .holdings-edit-mode .edit-mode-actions button { min-width:66px; padding:0 7px; font-size:11px; }
+}
+
 /* Strict value-weighted portfolio treemap (EOF precedence) */
 .portfolio-treemap { position:relative; display:block; min-height:360px; height:360px; overflow:hidden; border:1px solid #d9d9d9; background:#f5f5f5; }
 .portfolio-treemap .treemap-tile { position:absolute; min-width:0; min-height:0; margin:0; padding:clamp(7px,1.2vw,15px); display:flex; flex-direction:column; justify-content:center; align-items:center; gap:4px; border:2px solid #fff; border-radius:0; box-shadow:none; overflow:hidden; text-align:center; transition:filter .15s ease,z-index .15s ease; }

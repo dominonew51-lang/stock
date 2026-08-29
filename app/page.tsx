@@ -379,6 +379,7 @@ export default function Home() {
   const [accessPassword, setAccessPassword] = useState("");
   const [accessPasswordConfirm, setAccessPasswordConfirm] = useState("");
   const [accessBusy, setAccessBusy] = useState(false);
+  const [showAccessPassword, setShowAccessPassword] = useState(false);
   const [longTermStart, setLongTermStart] = useState("");
   const [profile, setProfile] = useState<Profile>({ name: "", target: "12", risk: "均衡型" });
   const [assetForm, setAssetForm] = useState({ symbol: "", name: "", market: "" as Market | "", category: "美股" as AssetBucket, avgCost: "", quantity: "", holdingDays: "" });
@@ -873,18 +874,34 @@ export default function Home() {
   if (deviceAccess.status !== "authorized") {
     const settingUp = (deviceAccess.setupRequired || resetRequested) && Boolean(setupToken);
     return <main className="device-access-shell">
-      <section className="device-access-card" aria-live="polite">
-        <div className="device-access-brand">M</div>
-        <p>MINIMALISM · PRIVATE PORTFOLIO</p>
-        <h1>{deviceAccess.status === "checking" ? "正在打开你的面板" : resetRequested ? "重置访问密码" : settingUp ? "设置访问密码" : "打开资产面板"}</h1>
-        <span>{deviceAccess.message}</span>
-        {deviceAccess.status !== "checking" && (!deviceAccess.setupRequired || settingUp || resetRequested) && <form className="device-access-form" onSubmit={(event)=>void submitDeviceAccess(event)}>
-          <label><span>{settingUp ? "创建密码" : "访问密码"}</span><input type="password" autoComplete={settingUp ? "new-password" : "current-password"} minLength={settingUp ? 10 : undefined} value={accessPassword} onChange={(event)=>setAccessPassword(event.target.value)} placeholder={settingUp ? "至少 10 个字符" : "输入你的密码"} /></label>
-          {settingUp && <label><span>确认密码</span><input type="password" autoComplete="new-password" minLength={10} value={accessPasswordConfirm} onChange={(event)=>setAccessPasswordConfirm(event.target.value)} placeholder="再次输入密码" /></label>}
-          <button type="submit" disabled={accessBusy || !accessPassword}>{accessBusy ? "请稍候…" : resetRequested ? "重置并进入" : settingUp ? "设置并进入" : "进入面板"}</button>
-        </form>}
-        {deviceAccess.setupRequired && !setupToken && deviceAccess.status !== "checking" && <div className="device-setup-needed">首次使用需要打开我稍后发给你的一次性设置链接。</div>}
-        <small>成功后会信任当前设备 180 天，平时点击网页图标即可直接进入。</small>
+      <section className="device-access-card" aria-busy={deviceAccess.status === "checking" || accessBusy}>
+        <aside className="device-access-visual" aria-hidden="true">
+          <div className="device-access-wordmark"><span>M.</span><small>MINIMALISM</small></div>
+          <div className="device-access-thesis"><span>PRIVATE PORTFOLIO</span><strong>只看重要的。<br />其余交给时间。</strong><p>你的持仓、收益与配置，都留在一个安静的视野里。</p></div>
+          <div className="portfolio-orbit">
+            <svg viewBox="0 0 260 260" role="img">
+              <circle className="orbit-track" cx="130" cy="130" r="94" />
+              <circle className="orbit-segment orbit-a" cx="130" cy="130" r="94" pathLength="100" />
+              <circle className="orbit-segment orbit-b" cx="130" cy="130" r="72" pathLength="100" />
+              <circle className="orbit-track inner" cx="130" cy="130" r="50" />
+              <path className="orbit-trend" d="M76 151 C96 151 105 129 121 136 C140 145 149 99 185 104" />
+            </svg>
+            <span><b>长期</b><small>比预测更重要</small></span>
+          </div>
+          <div className="device-access-facts"><span><b>180 天</b><small>设备信任</small></span><span><b>Private</b><small>个人访问</small></span></div>
+        </aside>
+        <div className="device-access-content">
+          <div className="device-access-mobile-brand"><span>M.</span><small>MINIMALISM</small></div>
+          <header><p>PRIVATE ACCESS</p><h1>{deviceAccess.status === "checking" ? "正在确认设备" : resetRequested ? "重置访问密码" : settingUp ? "设置访问密码" : "欢迎回来"}</h1></header>
+          <div className={`device-access-message ${deviceAccess.status === "error" ? "is-error" : ""}`} role="status" aria-live="polite">{deviceAccess.status === "checking" && <i className="device-access-loader" />}{deviceAccess.message}</div>
+          {deviceAccess.status !== "checking" && (!deviceAccess.setupRequired || settingUp || resetRequested) && <form className="device-access-form" onSubmit={(event)=>void submitDeviceAccess(event)}>
+            <label><span>{settingUp ? "创建密码" : "访问密码"}</span><div className="device-password-field"><input type={showAccessPassword ? "text" : "password"} autoComplete={settingUp ? "new-password" : "current-password"} minLength={settingUp ? 10 : undefined} value={accessPassword} onChange={(event)=>setAccessPassword(event.target.value)} placeholder={settingUp ? "至少 10 个字符" : "输入你的密码"} autoFocus /><button type="button" onClick={()=>setShowAccessPassword((current)=>!current)} aria-label={showAccessPassword ? "隐藏密码" : "显示密码"} aria-pressed={showAccessPassword}>{showAccessPassword ? "隐藏" : "显示"}</button></div></label>
+            {settingUp && <label><span>确认密码</span><div className="device-password-field"><input type={showAccessPassword ? "text" : "password"} autoComplete="new-password" minLength={10} value={accessPasswordConfirm} onChange={(event)=>setAccessPasswordConfirm(event.target.value)} placeholder="再次输入密码" /></div></label>}
+            <button className="device-access-submit" type="submit" disabled={accessBusy || !accessPassword}><span>{accessBusy ? "正在验证" : resetRequested ? "重置并进入" : settingUp ? "设置并进入" : "进入资产面板"}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4" /></svg></button>
+          </form>}
+          {deviceAccess.setupRequired && !setupToken && deviceAccess.status !== "checking" && <div className="device-setup-needed">首次使用需要通过一次性设置链接创建访问密码。</div>}
+          <div className="device-access-footnote"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="8.5" width="11" height="8" rx="2" /><path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" /></svg><span>验证成功后，此设备将保持登录 180 天。</span></div>
+        </div>
       </section>
     </main>;
   }

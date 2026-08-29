@@ -388,6 +388,7 @@ export default function Home() {
   const [usSectorLists, setUsSectorLists] = useState<Record<string, string[]>>(defaultUSSectors);
   const [usQuotes, setUsQuotes] = useState<Record<string, USQuote>>({});
   const [selectedOverviewSymbol, setSelectedOverviewSymbol] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const quoteCodes = useMemo(() => {
     const symbols = new Set<string>();
@@ -438,8 +439,8 @@ export default function Home() {
   useEffect(() => {
     if (!quoteCodes) return;
     try {
-      const cached = JSON.parse(window.localStorage.getItem("hengce-quotes-cache") || "null") as { quotes?: Record<string, MarketQuote> } | null;
-      if (cached?.quotes) { setRemoteQuotes((current) => ({ ...cached.quotes, ...current })); setUsQuotes((current) => ({ ...cached.quotes, ...current })); }
+      const cached = JSON.parse(window.localStorage.getItem("hengce-quotes-cache") || "null") as { quotes?: Record<string, MarketQuote>; savedAt?: number } | null;
+      if (cached?.quotes) { setRemoteQuotes((current) => ({ ...cached.quotes, ...current })); setUsQuotes((current) => ({ ...cached.quotes, ...current })); if (cached.savedAt) setLastUpdatedAt(new Date(cached.savedAt)); }
     } catch { /* 缓存损坏时直接走实时请求 */ }
     let controller: AbortController | null = null;
     const refreshQuotes = () => {
@@ -447,7 +448,7 @@ export default function Home() {
       controller = new AbortController();
       const hour = new Date().getHours();
       let cachedSymbols = new Set<string>();
-      try { const stored = JSON.parse(window.localStorage.getItem("hengce-quotes-cache") || "null") as { quotes?: Record<string, MarketQuote> } | null; cachedSymbols = new Set(Object.keys(stored?.quotes || {})); } catch { /* ignore */ }
+        try { const stored = JSON.parse(window.localStorage.getItem("hengce-quotes-cache") || "null") as { quotes?: Record<string, MarketQuote>; savedAt?: number } | null; cachedSymbols = new Set(Object.keys(stored?.quotes || {})); } catch { /* ignore */ }
       const activeCodes = quoteCodes.split(",").filter((code) => {
         const market = marketBySymbol[code] || (/^[A-Z]/.test(code) ? "美股" : "A股");
         if (market === "美股") return true;
@@ -459,7 +460,7 @@ export default function Home() {
         .then((response) => response.json())
         .then((rawPayload) => {
           const payload = rawPayload as { quotes?: Record<string, MarketQuote>; errors?: Record<string, string> };
-          if (payload.quotes) { setRemoteQuotes((current) => ({ ...current, ...payload.quotes })); setUsQuotes((current) => ({ ...current, ...payload.quotes })); window.localStorage.setItem("hengce-quotes-cache", JSON.stringify({ quotes: payload.quotes, savedAt: Date.now() })); }
+          if (payload.quotes) { setRemoteQuotes((current) => ({ ...current, ...payload.quotes })); setUsQuotes((current) => ({ ...current, ...payload.quotes })); setLastUpdatedAt(new Date()); window.localStorage.setItem("hengce-quotes-cache", JSON.stringify({ quotes: payload.quotes, savedAt: Date.now() })); }
           setQuoteErrors(payload.errors ?? {});
         })
         .catch(() => { /* 保留上一次成功行情 */ });
@@ -472,7 +473,7 @@ export default function Home() {
   useEffect(() => {
     let controller: AbortController | null = null;
     let timer: number | undefined;
-    try { const cached = JSON.parse(window.localStorage.getItem("hengce-cn-market-cache") || "null") as CnMarketResponse | null; if (cached?.items) setCnMarket(cached); } catch { /* ignore */ }
+    try { const cached = JSON.parse(window.localStorage.getItem("hengce-cn-market-cache") || "null") as CnMarketResponse | null; if (cached?.items) { setCnMarket(cached); if (cached.updatedAt) setLastUpdatedAt(new Date(cached.updatedAt)); } } catch { /* ignore */ }
     const refresh = () => {
       const hour = new Date().getHours();
       let hasCache = false;
@@ -480,7 +481,7 @@ export default function Home() {
       if (hour >= 15 && hasCache) return;
       controller?.abort(); controller = new AbortController(); setCnMarketLoading(true);
       const url = `/api/cn-market?codes=${encodeURIComponent(todayMarketCodes.join(","))}&dividendCodes=${encodeURIComponent(todayMarketCodes.join(","))}`;
-      fetch(url, { signal: controller.signal, cache: "no-store" }).then((response) => response.json()).then((payload) => { const next = payload as CnMarketResponse; setCnMarket(next); window.localStorage.setItem("hengce-cn-market-cache", JSON.stringify(next)); }).catch(() => undefined).finally(() => setCnMarketLoading(false));
+      fetch(url, { signal: controller.signal, cache: "no-store" }).then((response) => response.json()).then((payload) => { const next = payload as CnMarketResponse; setCnMarket(next); setLastUpdatedAt(new Date()); window.localStorage.setItem("hengce-cn-market-cache", JSON.stringify(next)); }).catch(() => undefined).finally(() => setCnMarketLoading(false));
     };
     refresh();
     const schedule = () => { timer = window.setTimeout(() => { refresh(); schedule(); }, new Date().getHours() >= 15 ? 300000 : 20000); };
@@ -909,8 +910,8 @@ export default function Home() {
   return <main className="app-shell overview-only">
     <section className="workspace">
       <header className="topbar">
-        <div><h1>{page === "overview" ? "Minimalism" : page === "ashare" ? "A股行情" : "美股行情"}</h1><span className="page-kicker">{page === "overview" ? "PRIVATE PORTFOLIO" : page === "ashare" ? "CHINA MARKET" : "US MARKET"}</span></div>
-        <div className="top-actions"><button className="icon-btn" aria-label="偏好设置" onClick={() => setShowSettings(true)}>⚙</button></div>
+        <div><h1>{page === "overview" ? "Minimalism" : page === "ashare" ? "A股行情" : "美股行情"}</h1><div className="topbar-meta"><span className="page-kicker">{page === "overview" ? "PRIVATE PORTFOLIO" : page === "ashare" ? "CHINA MARKET" : "US MARKET"}</span><span className="topbar-updated">{lastUpdatedAt ? `更新于 ${lastUpdatedAt.toLocaleTimeString("zh-CN", { hour:"2-digit", minute:"2-digit" })}` : "等待数据"}</span></div></div>
+        <div className="top-actions"><button className="icon-btn" aria-label="偏好设置" onClick={() => setShowSettings(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z"/><path d="m19.2 13.2 1.2.9-1.8 3.1-1.4-.6a7.6 7.6 0 0 1-1.8 1l-.2 1.6h-3.6l-.2-1.6a7.6 7.6 0 0 1-1.8-1l-1.4.6-1.8-3.1 1.2-.9a7.7 7.7 0 0 1 0-2.4l-1.2-.9 1.8-3.1 1.4.6a7.6 7.6 0 0 1 1.8-1l.2-1.6h3.6l.2 1.6a7.6 7.6 0 0 1 1.8 1l1.4-.6 1.8 3.1-1.2.9a7.7 7.7 0 0 1 0 2.4Z"/></svg></button></div>
       </header>
       {page === "overview" && <>
         <section className="overview-hero">
@@ -930,7 +931,7 @@ export default function Home() {
             </div>
           </section>
           <article className="panel performance-panel analysis-panel">
-            <div className="panel-head trend-head"><div><h2>{trendMode === "allocation" ? "资产配置分布" : "资产分析"}</h2><p>{trendMode === "allocation" ? "按当前持仓市值实时统计" : trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['profit','收益'],['assets','市值成本'],['allocation','资产配置分布']] as [AnalysisMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div></div></div>
+            <div className="panel-head trend-head"><div><h2>{trendMode === "allocation" ? "资产配置分布" : "资产分析"}</h2><p>{trendMode === "allocation" ? "按当前持仓市值实时统计" : trendView.description}</p></div><div className="trend-controls"><div className="trend-switch">{([['return','收益率'],['profit','收益'],['assets','市值'],['allocation','比例']] as [AnalysisMode,string][]).map(([id,label])=><button key={id} className={trendMode === id ? "selected" : ""} onClick={()=>setTrendMode(id)}>{label}</button>)}</div></div></div>
             {trendMode === "allocation" ? <AllocationContent data={allocationData} totalValue={totalValue} /> : <><div className="chart-legend"><span><i className="legend-value" />{trendView.primary} <b className={selectedTrendMode !== "assets" ? (profit >= 0 ? "up" : "down") : ""}>{trendView.primaryValue}</b></span>{trendView.secondary && <span><i className="legend-cost" />{trendView.secondary} <b>{trendView.secondaryValue}</b></span>}<span className="chart-note">{trendView.note}</span></div><PerformanceChart mode={selectedTrendMode} trend={portfolioTrend} range={range} /></>}
           </article>
         </section>

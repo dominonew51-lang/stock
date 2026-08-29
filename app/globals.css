@@ -1715,6 +1715,272 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > small { font-size:11px!important; }
 }
 
+/* Final precedence for the modern overview system. */
+.app-shell.overview-only .trend-switch { display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; width:100%!important; }
+.app-shell.overview-only .trend-switch button { width:100%!important; min-width:0!important; flex:1 1 0!important; }
+.app-shell.overview-only .trend-controls { flex-direction:row!important; flex-wrap:nowrap!important; }
+.app-shell.overview-only .overview-hero .summary-card { padding:27px 27px 22px!important; }
+.app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+.app-shell.overview-only .overview-hero .performance-panel { min-height:0!important; }
+.app-shell.overview-only .portfolio-treemap .treemap-tile strong { white-space:nowrap!important; overflow:hidden!important; text-overflow:ellipsis!important; overflow-wrap:normal!important; word-break:normal!important; }
+
+@media (max-width:980px) {
+  .app-shell.overview-only .overview-hero .summary-card { padding:27px 27px 22px!important; }
+}
+@media (max-width:780px) {
+  .app-shell.overview-only .workspace { padding:16px 14px calc(102px + env(safe-area-inset-bottom))!important; }
+  .app-shell.overview-only .overview-hero .summary-card { padding:21px 17px 18px!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding:18px 14px 12px!important; }
+  .app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-head { display:grid!important; gap:12px; }
+  .app-shell.overview-only .trend-controls { width:100%!important; min-width:0!important; }
+  .app-shell.overview-only .trend-switch { display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-switch button { min-height:42px!important; padding-left:2px!important; padding-right:2px!important; font-size:11px!important; }
+  .app-shell.overview-only .portfolio-treemap { height:270px!important; min-height:270px!important; }
+  .app-shell.overview-only .portfolio-treemap .treemap-tile strong { font-size:clamp(10px,3vw,15px)!important; }
+}
+@media (max-width:390px) {
+  .app-shell.overview-only .workspace { padding-left:11px!important; padding-right:11px!important; }
+  .app-shell.overview-only .overview-hero .summary-card { padding-left:14px!important; padding-right:14px!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding-left:11px!important; padding-right:11px!important; }
+  .app-shell.overview-only .trend-switch button { font-size:10px!important; }
+  .app-shell.overview-only .portfolio-treemap { height:250px!important; min-height:250px!important; }
+}
+
+/* Modern portfolio layer: one intentional, late-loaded overview system. */
+:root {
+  --modern-bg:#f6f9fc;
+  --modern-surface:#ffffff;
+  --modern-surface-soft:#f8fbff;
+  --modern-ink:#0a2540;
+  --modern-muted:#6c7d90;
+  --modern-line:#dce6f0;
+  --modern-accent:#635bff;
+  --modern-info:#00a3ff;
+  --modern-profit:#c73e3a;
+  --modern-loss:#16845b;
+  --modern-shadow:0 18px 50px rgba(25,54,86,.08);
+}
+
+html { background:var(--modern-bg); }
+body {
+  color:var(--modern-ink);
+  background:var(--modern-bg);
+  font-family:"SF Pro Text","SF Pro Display","Avenir Next","PingFang SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px;
+  overflow-x:hidden;
+}
+button,input,select { font-family:inherit; }
+button:focus-visible,input:focus-visible,select:focus-visible { outline:3px solid rgba(99,91,255,.28); outline-offset:2px; }
+.app-shell.overview-only { min-height:100vh; background:var(--modern-bg); }
+.app-shell.overview-only .workspace { width:min(1340px,100%); padding:28px 36px 110px; }
+.app-shell.overview-only .sidebar {
+  border-right:1px solid var(--modern-line);
+  background:rgba(246,249,252,.88);
+  box-shadow:12px 0 34px rgba(25,54,86,.05);
+  backdrop-filter:blur(18px);
+}
+.app-shell.overview-only .brand-mark { color:#fff; background:var(--modern-accent); box-shadow:0 8px 20px rgba(99,91,255,.22); }
+.app-shell.overview-only .brand strong,.app-shell.overview-only .nav-item.active { color:var(--modern-ink); }
+.app-shell.overview-only .brand small,.app-shell.overview-only .nav-caption { color:#8b9aad; }
+.app-shell.overview-only .nav-item { color:#6e8194; }
+.app-shell.overview-only .nav-item span { color:#8799ab; }
+.app-shell.overview-only .nav-item:hover,.app-shell.overview-only .nav-item.active { background:#eaf1f8; }
+.app-shell.overview-only .nav-item.active { box-shadow:inset 3px 0 var(--modern-accent); }
+
+.app-shell.overview-only .topbar { margin-bottom:20px; align-items:flex-start; }
+.app-shell.overview-only .topbar h1 { color:var(--modern-ink); font-size:clamp(25px,3vw,34px); font-weight:760; letter-spacing:-.055em; line-height:1; }
+.app-shell.overview-only .topbar-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; margin-top:8px; }
+.app-shell.overview-only .page-kicker { margin:0; color:#7e8fa1; font-size:10px; font-weight:750; letter-spacing:.16em; }
+.app-shell.overview-only .topbar-updated { color:#90a0b0; font-size:10px; font-variant-numeric:tabular-nums; }
+.app-shell.overview-only .top-actions { gap:8px; }
+.app-shell.overview-only .icon-btn { width:44px; height:44px; border:1px solid var(--modern-line); border-radius:13px; color:var(--modern-ink); background:rgba(255,255,255,.82); box-shadow:0 8px 20px rgba(25,54,86,.06); }
+.app-shell.overview-only .icon-btn svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.app-shell.overview-only .icon-btn:hover { border-color:#bfcdf0; color:var(--modern-accent); background:#fff; }
+
+.app-shell.overview-only .panel,
+.app-shell.overview-only .overview-hero,
+.app-shell.overview-only .overview-heatmap-section {
+  border:1px solid var(--modern-line);
+  border-radius:22px;
+  background:var(--modern-surface);
+  box-shadow:var(--modern-shadow);
+}
+.app-shell.overview-only .overview-hero {
+  position:relative;
+  isolation:isolate;
+  display:grid;
+  grid-template-columns:minmax(300px,.86fr) minmax(0,1.55fr);
+  min-height:0;
+  margin:0 0 18px;
+  overflow:hidden;
+}
+.app-shell.overview-only .overview-hero::before {
+  content:"";
+  position:absolute;
+  z-index:-1;
+  inset:0 0 auto;
+  height:10px;
+  background:linear-gradient(90deg,rgba(99,91,255,.66),rgba(0,163,255,.24),rgba(99,91,255,0));
+  opacity:.68;
+}
+.app-shell.overview-only .overview-hero > * { position:relative; z-index:1; }
+.app-shell.overview-only .overview-hero .summary-card {
+  min-height:0;
+  padding:27px 27px 22px;
+  display:block;
+  border:0;
+  border-right:1px solid var(--modern-line);
+  border-radius:22px 0 0 22px;
+  background:linear-gradient(145deg,#fff 0%,#fbfdff 63%,#f3f7ff 100%);
+  box-shadow:none;
+}
+.app-shell.overview-only .summary-main { min-width:0; }
+.app-shell.overview-only .eyebrow { color:#71859a; font-size:11px; font-weight:650; letter-spacing:.02em; }
+.app-shell.overview-only .eyebrow button { color:#8c9eaf; }
+.app-shell.overview-only .total { margin:12px 0 13px; color:var(--modern-ink); font-size:clamp(28px,3.1vw,40px); font-weight:720; letter-spacing:-.06em; }
+.app-shell.overview-only .live-pill { margin-left:8px; padding:4px 7px; color:var(--modern-accent); background:#efefff; font-size:9px; font-weight:700; letter-spacing:.08em; }
+.app-shell.overview-only .pnl { gap:8px; font-size:11px; }
+.app-shell.overview-only .pnl span { color:#71859a; }
+.app-shell.overview-only .pnl strong,.app-shell.overview-only .pnl em { font-weight:750; font-style:normal; }
+.app-shell.overview-only .pnl.up strong,.app-shell.overview-only .pnl.up em,.app-shell.overview-only .pnl.up small,
+.app-shell.overview-only .summary-stats .up,.app-shell.overview-only .holding-entry.row-profit .up { color:var(--modern-profit)!important; }
+.app-shell.overview-only .pnl.down strong,.app-shell.overview-only .pnl.down em,.app-shell.overview-only .pnl.down small,
+.app-shell.overview-only .summary-stats .down,.app-shell.overview-only .holding-entry.row-loss .down { color:var(--modern-loss)!important; }
+.app-shell.overview-only .pnl small { width:23px; height:23px; color:var(--modern-accent); background:#f0efff; }
+.app-shell.overview-only .long-term-counter { margin-top:18px; color:#72869b; font-size:11px; }
+.app-shell.overview-only .long-term-counter strong { color:var(--modern-ink); font-size:19px; font-weight:750; }
+.app-shell.overview-only .long-term-counter small { color:#8b9cae; }
+.app-shell.overview-only .currency-toggle { top:-2px; right:0; border-color:var(--modern-line); background:#f3f7fb; }
+.app-shell.overview-only .currency-toggle button { min-height:28px; color:#7b8da0; }
+.app-shell.overview-only .currency-toggle button.active { color:var(--modern-accent); background:#fff; box-shadow:0 3px 8px rgba(25,54,86,.08); }
+.app-shell.overview-only .overview-hero .summary-stats {
+  min-width:0;
+  margin-top:22px;
+  padding-top:17px;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  border-top:1px solid var(--modern-line);
+}
+.app-shell.overview-only .overview-hero .summary-stats > div { min-width:0; padding:0 10px 0 0; border:0; }
+.app-shell.overview-only .overview-hero .summary-stats > div + div { padding-left:10px; border-left:1px solid var(--modern-line); }
+.app-shell.overview-only .summary-stats span { color:#788b9e; font-size:10px; white-space:nowrap; }
+.app-shell.overview-only .summary-stats strong { margin:7px 0 5px; color:var(--modern-ink); font-size:13px; font-weight:720; white-space:nowrap; }
+.app-shell.overview-only .summary-stats small { color:#91a0ae; font-size:9px; white-space:nowrap; }
+
+.app-shell.overview-only .overview-hero .performance-panel { min-height:0; padding:25px 27px 18px; border:0; border-radius:0 22px 22px 0; background:#fff; box-shadow:none; }
+.app-shell.overview-only .trend-head { min-width:0; gap:16px; align-items:center; }
+.app-shell.overview-only .trend-head > div:first-child { min-width:0; }
+.app-shell.overview-only .trend-head h2 { color:var(--modern-ink); font-size:16px; font-weight:720; letter-spacing:-.02em; }
+.app-shell.overview-only .trend-head p { margin-top:5px; color:#8294a6; font-size:10px; }
+.app-shell.overview-only .trend-controls { width:min(420px,58%); min-width:250px; }
+.app-shell.overview-only .trend-switch { width:100%; min-width:0; padding:3px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:2px; border:1px solid var(--modern-line); border-radius:12px; background:#f4f7fb; }
+.app-shell.overview-only .trend-switch button { min-width:0; min-height:44px; padding:6px 5px; overflow:hidden; border:0; border-radius:9px; color:#71869a; background:transparent; font-size:11px; font-weight:650; line-height:1; white-space:nowrap; }
+.app-shell.overview-only .trend-switch button.selected { color:#fff; background:var(--modern-accent); box-shadow:0 7px 16px rgba(99,91,255,.2); }
+.app-shell.overview-only .trend-switch button:hover:not(.selected) { color:var(--modern-ink); background:#e9eff7; }
+.app-shell.overview-only .chart-legend { margin:18px 0 0; gap:18px; color:#8294a6; font-size:10px; }
+.app-shell.overview-only .chart-legend b { color:var(--modern-ink); font-weight:720; }
+.app-shell.overview-only .chart-legend b.up { color:var(--modern-profit)!important; }
+.app-shell.overview-only .chart-legend b.down { color:var(--modern-loss)!important; }
+.app-shell.overview-only .chart-note { color:#99a8b6!important; }
+.app-shell.overview-only .chart-legend i { width:8px; height:8px; border-radius:50%; }
+.app-shell.overview-only .legend-value { background:var(--modern-accent); }.app-shell.overview-only .legend-cost { background:#a8b9c9; }
+.app-shell.overview-only .performance-chart { height:258px; padding:12px 13px 21px 42px; }
+.app-shell.overview-only .chart-y,.app-shell.overview-only .chart-x { color:#91a0ae; font-size:9px; }
+.app-shell.overview-only .chart-y span::after { background:#e9eff5; }
+.app-shell.overview-only .performance-chart svg > path[fill="none"] { stroke:var(--modern-accent); }
+.app-shell.overview-only .performance-chart svg > path[fill^="url"] { stroke:none; }
+.app-shell.overview-only .performance-chart svg > path[stroke="#d6537f"] { stroke:#8fa5ba; }
+
+.app-shell.overview-only .overview-heatmap-section { margin:0 0 18px; padding:22px; }
+.app-shell.overview-only .section-inline-head { margin-bottom:14px; align-items:center; }
+.app-shell.overview-only .section-inline-head h2 { color:var(--modern-ink); font-size:17px; font-weight:720; }
+.app-shell.overview-only .section-inline-head p { margin-top:5px; color:#8294a6; font-size:10px; }
+.app-shell.overview-only .heatmap-edit-btn { min-height:44px; padding:0 14px; border:1px solid #cbd8e6; border-radius:11px; color:var(--modern-accent); background:#f5f6ff; font-size:11px; font-weight:700; }
+.app-shell.overview-only .heatmap-edit-btn:hover { border-color:var(--modern-accent); color:#fff; background:var(--modern-accent); }
+.app-shell.overview-only .portfolio-treemap { height:320px; min-height:320px; overflow:hidden; border:1px solid #e1e9f1; border-radius:16px; background:#edf3f8; }
+.app-shell.overview-only .portfolio-treemap .treemap-tile { min-width:0; min-height:0; padding:8px; gap:3px; border:2px solid #fff; border-radius:8px; box-shadow:none; text-align:center; text-shadow:0 1px 2px rgba(4,23,42,.24); transition:filter .18s ease,transform .18s ease; }
+.app-shell.overview-only .portfolio-treemap .treemap-tile:hover { z-index:2; filter:brightness(1.06); transform:scale(.995); box-shadow:inset 0 0 0 1px rgba(255,255,255,.9); }
+.app-shell.overview-only .portfolio-treemap .treemap-tile strong,.app-shell.overview-only .portfolio-treemap .treemap-tile span,.app-shell.overview-only .portfolio-treemap .treemap-tile small { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap!important; overflow-wrap:normal!important; word-break:normal!important; }
+.app-shell.overview-only .portfolio-treemap .treemap-tile strong { font-size:clamp(11px,1.3vw,17px)!important; font-weight:700!important; letter-spacing:-.02em; }
+.app-shell.overview-only .portfolio-treemap .treemap-tile span { color:rgba(255,255,255,.94); font-size:clamp(10px,1vw,14px)!important; font-weight:700!important; }
+.app-shell.overview-only .portfolio-treemap .treemap-tile small { color:rgba(255,255,255,.88); font-size:clamp(9px,.8vw,11px)!important; font-weight:650!important; }
+.app-shell.overview-only .portfolio-treemap .treemap-tile-compact strong { font-size:clamp(10px,1.1vw,14px)!important; font-weight:650!important; }
+
+.app-shell.overview-only .holdings-panel { margin-top:0; border-color:var(--modern-line); background:#fff; box-shadow:var(--modern-shadow); }
+.app-shell.overview-only .holdings-head { padding:20px 22px 14px; }
+.app-shell.overview-only .holdings-head h2 { color:var(--modern-ink); font-size:17px; }
+.app-shell.overview-only .holdings-head p { color:#8294a6; font-size:10px; }
+.app-shell.overview-only .holdings-panel:not(.holdings-edit-mode) .holding-row.holding-row-toggle { min-height:64px; border-top:1px solid #edf2f7; }
+.app-shell.overview-only .holdings-panel:not(.holdings-edit-mode) .holding-row.holding-row-toggle:hover { background:#f7faff; }
+.app-shell.overview-only .holding-row.row-profit:not(.holding-header) { background:linear-gradient(90deg,rgba(199,62,58,.1),rgba(255,255,255,0)); box-shadow:inset 3px 0 rgba(199,62,58,.72); }
+.app-shell.overview-only .holding-row.row-loss:not(.holding-header) { background:linear-gradient(90deg,rgba(22,132,91,.1),rgba(255,255,255,0)); box-shadow:inset 3px 0 rgba(22,132,91,.72); }
+.app-shell.overview-only .asset-cell strong,.app-shell.overview-only .position-value strong,.app-shell.overview-only .cumulative-profit strong,.app-shell.overview-only .market-price-cell > small { color:var(--modern-ink); font-weight:720!important; }
+.app-shell.overview-only .asset-cell small,.app-shell.overview-only .position-value small { color:#8294a6; }
+.app-shell.overview-only .holding-entry.row-profit .cumulative-profit strong,.app-shell.overview-only .holding-entry.row-profit .cumulative-profit small { color:var(--modern-profit)!important; }
+.app-shell.overview-only .holding-entry.row-loss .cumulative-profit strong,.app-shell.overview-only .holding-entry.row-loss .cumulative-profit small { color:var(--modern-loss)!important; }
+.app-shell.overview-only .market-price-cell > small.up { color:var(--modern-profit)!important; }.app-shell.overview-only .market-price-cell > small.down { color:var(--modern-loss)!important; }
+
+.app-shell.overview-only .bottom-nav { bottom:max(12px,env(safe-area-inset-bottom)); padding:5px; gap:3px; border:1px solid rgba(194,208,224,.9); border-radius:17px; background:rgba(255,255,255,.84); box-shadow:0 14px 36px rgba(25,54,86,.16); backdrop-filter:blur(18px); }
+.app-shell.overview-only .bottom-nav button { min-width:92px; min-height:48px; padding:7px 14px; border-radius:12px; color:#7890a6; }
+.app-shell.overview-only .bottom-nav button.active { color:#fff; background:var(--modern-ink); box-shadow:0 7px 16px rgba(10,37,64,.16); }
+.app-shell.overview-only .bottom-nav strong { font-size:12px; font-weight:720; }.app-shell.overview-only .bottom-nav span { color:inherit; font-size:9px; }
+
+@media (max-width:980px) {
+  .app-shell.overview-only .workspace { padding:22px 24px 108px; }
+  .app-shell.overview-only .overview-hero { grid-template-columns:1fr; }
+  .app-shell.overview-only .overview-hero .summary-card { border-right:0; border-bottom:1px solid var(--modern-line); border-radius:22px 22px 0 0; }
+  .app-shell.overview-only .overview-hero .performance-panel { border-radius:0 0 22px 22px; }
+  .app-shell.overview-only .trend-controls { width:min(440px,58%); }
+}
+@media (max-width:780px) {
+  .app-shell.overview-only .workspace { padding:16px 14px calc(102px + env(safe-area-inset-bottom)); }
+  .app-shell.overview-only .topbar { margin-bottom:14px; }
+  .app-shell.overview-only .topbar h1 { font-size:27px; }
+  .app-shell.overview-only .topbar-meta { gap:5px 10px; }
+  .app-shell.overview-only .topbar-updated { font-size:9px; }
+  .app-shell.overview-only .overview-hero { margin-bottom:14px; border-radius:18px; }
+  .app-shell.overview-only .overview-hero .summary-card { padding:21px 17px 18px; border-radius:18px 18px 0 0; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding:18px 14px 12px; border-radius:0 0 18px 18px; }
+  .app-shell.overview-only .total { font-size:31px; }
+  .app-shell.overview-only .overview-hero .summary-stats { margin-top:18px; padding-top:14px; }
+  .app-shell.overview-only .overview-hero .summary-stats > div { padding-right:6px; }
+  .app-shell.overview-only .overview-hero .summary-stats > div + div { padding-left:7px; }
+  .app-shell.overview-only .summary-stats span { font-size:9px; }.app-shell.overview-only .summary-stats strong { font-size:12px; }.app-shell.overview-only .summary-stats small { font-size:8px; }
+  .app-shell.overview-only .trend-head { display:grid; gap:12px; }
+  .app-shell.overview-only .trend-controls { width:100%; min-width:0; }
+  .app-shell.overview-only .trend-switch { width:100%; }
+  .app-shell.overview-only .trend-switch button { min-height:42px; font-size:11px; }
+  .app-shell.overview-only .chart-legend { gap:10px; font-size:9px; flex-wrap:wrap; }
+  .app-shell.overview-only .chart-note { width:100%; margin-left:0; }
+  .app-shell.overview-only .performance-chart { height:224px; padding-left:37px; padding-right:7px; }
+  .app-shell.overview-only .overview-heatmap-section { margin-bottom:14px; padding:16px 12px; border-radius:18px; }
+  .app-shell.overview-only .section-inline-head { margin-bottom:11px; }
+  .app-shell.overview-only .section-inline-head h2 { font-size:15px; }.app-shell.overview-only .section-inline-head p { font-size:9px; }
+  .app-shell.overview-only .heatmap-edit-btn { min-height:42px; padding:0 11px; }
+  .app-shell.overview-only .portfolio-treemap { height:270px; min-height:270px; border-radius:13px; }
+  .app-shell.overview-only .portfolio-treemap .treemap-tile { padding:6px 4px; gap:2px; border-width:1px; }
+  .app-shell.overview-only .portfolio-treemap .treemap-tile strong { font-size:clamp(10px,3vw,15px)!important; }
+  .app-shell.overview-only .portfolio-treemap .treemap-tile span { font-size:clamp(9px,2.5vw,12px)!important; }
+  .app-shell.overview-only .portfolio-treemap .treemap-tile small { font-size:clamp(8px,2.2vw,10px)!important; }
+  .app-shell.overview-only .holdings-head { padding:16px 14px 11px; }
+  .app-shell.overview-only .bottom-nav { width:calc(100% - 20px); }
+  .app-shell.overview-only .bottom-nav button { min-width:0; flex:1 1 0; padding:7px 6px; }
+  .app-shell.overview-only .bottom-nav span { display:none; }
+}
+@media (max-width:390px) {
+  .app-shell.overview-only .workspace { padding-left:11px; padding-right:11px; }
+  .app-shell.overview-only .overview-hero .summary-card { padding-left:14px; padding-right:14px; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding-left:11px; padding-right:11px; }
+  .app-shell.overview-only .trend-switch button { padding-left:2px; padding-right:2px; font-size:10px; }
+  .app-shell.overview-only .portfolio-treemap { height:250px; min-height:250px; }
+  .app-shell.overview-only .portfolio-treemap .treemap-tile strong { font-size:clamp(9px,2.8vw,13px)!important; }
+  .app-shell.overview-only .portfolio-treemap .treemap-tile-compact strong { font-size:10px!important; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .app-shell.overview-only *, .app-shell.overview-only *::before, .app-shell.overview-only *::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; transition-duration:.01ms!important; }
+}
+
 /* Mobile editing focus mode: keep only the two tasks required to finish an edit. */
 .holdings-edit-mode .holdings-actions { margin-left:auto; }
 .holdings-edit-mode .edit-mode-actions { display:flex; gap:8px; }
@@ -2199,6 +2465,33 @@ button:focus-visible,input:focus-visible,select:focus-visible {
     min-height:50px;
     padding:5px 8px;
   }
+}
+
+/* Final modern precedence: keep the overview controls stable after legacy layers. */
+.app-shell.overview-only .trend-switch { display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; width:100%!important; }
+.app-shell.overview-only .trend-switch button { width:100%!important; min-width:0!important; flex:1 1 0!important; }
+.app-shell.overview-only .trend-controls { flex-direction:row!important; flex-wrap:nowrap!important; }
+.app-shell.overview-only .overview-hero .summary-card { padding:27px 27px 22px!important; }
+.app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+.app-shell.overview-only .overview-hero .performance-panel { min-height:0!important; }
+.app-shell.overview-only .portfolio-treemap .treemap-tile strong { white-space:nowrap!important; overflow:hidden!important; text-overflow:ellipsis!important; overflow-wrap:normal!important; word-break:normal!important; }
+@media (max-width:780px) {
+  .app-shell.overview-only .workspace { padding:16px 14px calc(102px + env(safe-area-inset-bottom))!important; }
+  .app-shell.overview-only .overview-hero .summary-card { padding:21px 17px 18px!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding:18px 14px 12px!important; }
+  .app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-head { display:grid!important; gap:12px; }
+  .app-shell.overview-only .trend-controls { width:100%!important; min-width:0!important; }
+  .app-shell.overview-only .trend-switch { display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-switch button { min-height:42px!important; padding-left:2px!important; padding-right:2px!important; font-size:11px!important; }
+  .app-shell.overview-only .portfolio-treemap { height:270px!important; min-height:270px!important; }
+}
+@media (max-width:390px) {
+  .app-shell.overview-only .workspace { padding-left:11px!important; padding-right:11px!important; }
+  .app-shell.overview-only .overview-hero .summary-card { padding-left:14px!important; padding-right:14px!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding-left:11px!important; padding-right:11px!important; }
+  .app-shell.overview-only .trend-switch button { font-size:10px!important; }
+  .app-shell.overview-only .portfolio-treemap { height:250px!important; min-height:250px!important; }
 }
 
 /* Final Sol precedence layer */

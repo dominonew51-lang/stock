@@ -407,7 +407,11 @@ export default function Home() {
   }, [customHoldings, useDemoHoldings]);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    if ("serviceWorker" in navigator) {
+      // Query-busting makes the browser check the new worker immediately after
+      // a publish instead of waiting for its periodic background update.
+      void navigator.serviceWorker.register("/sw.js?rev=20260829-modern").catch(() => undefined);
+    }
   }, []);
 
   useEffect(() => {

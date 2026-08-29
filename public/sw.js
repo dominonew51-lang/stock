@@ -1,4 +1,6 @@
-const CACHE_NAME = "minimalism-shell-v4";
+// Bump this whenever the application shell changes so previously cached mobile
+// markup cannot keep serving an older dashboard after a deployment.
+const CACHE_NAME = "minimalism-shell-v5";
 const SHELL = ["/", "/manifest.webmanifest", "/minimalism-icon.svg", "/minimalism-icon-192.png", "/minimalism-icon-512.png"];
 
 self.addEventListener("install", (event) => {

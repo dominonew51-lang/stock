@@ -872,6 +872,94 @@ body {
   .overview-only .allocation-pie { width:170px; }
 }
 
+/* Last-mile mobile refresh: keep the modern overview above legacy theme layers. */
+.app-shell.overview-only .overview-hero {
+  border:1px solid var(--modern-line)!important;
+  border-radius:22px!important;
+  box-shadow:var(--modern-shadow)!important;
+  background:var(--modern-surface)!important;
+}
+.app-shell.overview-only .overview-hero .summary-card {
+  border-right:1px solid var(--modern-line)!important;
+  border-bottom:0!important;
+  border-radius:22px 0 0 22px!important;
+  background:linear-gradient(145deg,#fff 0%,#fbfdff 63%,#f3f7ff 100%)!important;
+  box-shadow:none!important;
+}
+.app-shell.overview-only .overview-hero .performance-panel {
+  border-left:0!important;
+  border-top:0!important;
+  border-radius:0 22px 22px 0!important;
+  background:#fff!important;
+  box-shadow:none!important;
+}
+.app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+.app-shell.overview-only .trend-switch {
+  display:grid!important;
+  grid-auto-flow:initial!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  width:100%!important;
+  border:1px solid var(--modern-line)!important;
+  border-radius:12px!important;
+  background:#f4f7fb!important;
+}
+.app-shell.overview-only .trend-switch button {
+  width:100%!important;
+  min-width:0!important;
+  min-height:44px!important;
+  border:0!important;
+  border-radius:9px!important;
+  color:#71869a!important;
+  background:transparent!important;
+  font-size:11px!important;
+  font-weight:650!important;
+  white-space:nowrap!important;
+}
+.app-shell.overview-only .trend-switch button.selected { color:#fff!important; background:var(--modern-accent)!important; }
+.app-shell.overview-only .overview-heatmap-section,
+.app-shell.overview-only .holdings-panel {
+  border:1px solid var(--modern-line)!important;
+  border-radius:22px!important;
+  box-shadow:var(--modern-shadow)!important;
+  background:#fff!important;
+}
+
+@media(max-width:980px){
+  .app-shell.overview-only .overview-hero .summary-card {
+    border-right:0!important;
+    border-bottom:1px solid var(--modern-line)!important;
+    border-radius:22px 22px 0 0!important;
+  }
+  .app-shell.overview-only .overview-hero .performance-panel {
+    border-left:0!important;
+    border-top:0!important;
+    border-radius:0 0 22px 22px!important;
+  }
+}
+@media(max-width:780px){
+  .app-shell.overview-only .overview-hero {
+    border-radius:18px!important;
+  }
+  .app-shell.overview-only .overview-hero .summary-card {
+    padding:21px 17px 18px!important;
+    border-radius:18px 18px 0 0!important;
+  }
+  .app-shell.overview-only .overview-hero .performance-panel {
+    padding:18px 14px 12px!important;
+    border-radius:0 0 18px 18px!important;
+  }
+  .app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-head { display:grid!important; gap:12px!important; }
+  .app-shell.overview-only .trend-controls { width:100%!important; min-width:0!important; overflow:visible!important; }
+  .app-shell.overview-only .trend-switch { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-switch button { min-height:42px!important; font-size:11px!important; }
+}
+@media(max-width:390px){
+  .app-shell.overview-only .overview-hero .summary-card { padding-left:14px!important; padding-right:14px!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding-left:11px!important; padding-right:11px!important; }
+  .app-shell.overview-only .trend-switch button { font-size:10px!important; }
+}
+
 /* Strict value-weighted portfolio treemap (final precedence) */
 .portfolio-treemap { position:relative!important; display:block!important; min-height:360px!important; height:360px!important; overflow:hidden!important; border:1px solid #d9d9d9!important; background:#f5f5f5!important; }
 .portfolio-treemap .treemap-tile { position:absolute!important; min-width:0!important; min-height:0!important; margin:0!important; padding:clamp(7px,1.2vw,15px)!important; display:flex!important; flex-direction:column!important; justify-content:center!important; align-items:center!important; gap:4px!important; border:2px solid #fff!important; border-radius:0!important; box-shadow:none!important; overflow:hidden!important; text-align:center!important; transition:filter .15s ease,z-index .15s ease; }
@@ -1715,6 +1803,35 @@ button:focus-visible,input:focus-visible,select:focus-visible {
   .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > small { font-size:11px!important; }
 }
 
+/* Modern overview hard stop: this is intentionally the final cascade layer. */
+.app-shell.overview-only .overview-hero { border:1px solid var(--modern-line)!important; border-radius:22px!important; box-shadow:var(--modern-shadow)!important; background:#fff!important; }
+.app-shell.overview-only .overview-hero .summary-card { border-right:1px solid var(--modern-line)!important; border-bottom:0!important; border-radius:22px 0 0 22px!important; background:linear-gradient(145deg,#fff 0%,#fbfdff 63%,#f3f7ff 100%)!important; box-shadow:none!important; }
+.app-shell.overview-only .overview-hero .performance-panel { min-height:0!important; border:0!important; border-left:0!important; border-top:0!important; border-radius:0 22px 22px 0!important; background:#fff!important; box-shadow:none!important; }
+.app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+.app-shell.overview-only .trend-switch { display:grid!important; grid-auto-flow:initial!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; width:100%!important; border:1px solid var(--modern-line)!important; border-radius:12px!important; background:#f4f7fb!important; }
+.app-shell.overview-only .trend-switch button { width:100%!important; min-width:0!important; min-height:44px!important; flex:1 1 0!important; border:0!important; border-radius:9px!important; color:#71869a!important; background:transparent!important; font-size:11px!important; font-weight:650!important; white-space:nowrap!important; }
+.app-shell.overview-only .trend-switch button.selected { color:#fff!important; background:var(--modern-accent)!important; }
+.app-shell.overview-only .overview-heatmap-section,.app-shell.overview-only .holdings-panel { border:1px solid var(--modern-line)!important; border-radius:22px!important; box-shadow:var(--modern-shadow)!important; background:#fff!important; }
+@media(max-width:980px){
+  .app-shell.overview-only .overview-hero .summary-card { border-right:0!important; border-bottom:1px solid var(--modern-line)!important; border-radius:22px 22px 0 0!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { border-left:0!important; border-top:0!important; border-radius:0 0 22px 22px!important; }
+}
+@media(max-width:780px){
+  .app-shell.overview-only .overview-hero { border-radius:18px!important; }
+  .app-shell.overview-only .overview-hero .summary-card { padding:21px 17px 18px!important; border-radius:18px 18px 0 0!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding:18px 14px 12px!important; border-radius:0 0 18px 18px!important; }
+  .app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-head { display:grid!important; gap:12px!important; }
+  .app-shell.overview-only .trend-controls { width:100%!important; min-width:0!important; overflow:visible!important; }
+  .app-shell.overview-only .trend-switch { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-switch button { min-height:42px!important; font-size:11px!important; }
+}
+@media(max-width:390px){
+  .app-shell.overview-only .overview-hero .summary-card { padding-left:14px!important; padding-right:14px!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding-left:11px!important; padding-right:11px!important; }
+  .app-shell.overview-only .trend-switch button { font-size:10px!important; }
+}
+
 /* Final precedence for the modern overview system. */
 .app-shell.overview-only .trend-switch { display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; width:100%!important; }
 .app-shell.overview-only .trend-switch button { width:100%!important; min-width:0!important; flex:1 1 0!important; }
@@ -2553,4 +2670,33 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:3px soli
   .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .position-value strong,
   .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .cumulative-profit strong,
   .holdings-panel:not(.holdings-edit-mode) .holding-row-toggle .market-price-cell > small { font-size:11px!important; }
+}
+
+/* Modern overview hard stop: this is intentionally the final cascade layer. */
+.app-shell.overview-only .overview-hero { border:1px solid var(--modern-line)!important; border-radius:22px!important; box-shadow:var(--modern-shadow)!important; background:#fff!important; }
+.app-shell.overview-only .overview-hero .summary-card { border-right:1px solid var(--modern-line)!important; border-bottom:0!important; border-radius:22px 0 0 22px!important; background:linear-gradient(145deg,#fff 0%,#fbfdff 63%,#f3f7ff 100%)!important; box-shadow:none!important; }
+.app-shell.overview-only .overview-hero .performance-panel { min-height:0!important; border:0!important; border-left:0!important; border-top:0!important; border-radius:0 22px 22px 0!important; background:#fff!important; box-shadow:none!important; }
+.app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+.app-shell.overview-only .trend-switch { display:grid!important; grid-auto-flow:initial!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; width:100%!important; border:1px solid var(--modern-line)!important; border-radius:12px!important; background:#f4f7fb!important; }
+.app-shell.overview-only .trend-switch button { width:100%!important; min-width:0!important; min-height:44px!important; flex:1 1 0!important; border:0!important; border-radius:9px!important; color:#71869a!important; background:transparent!important; font-size:11px!important; font-weight:650!important; white-space:nowrap!important; }
+.app-shell.overview-only .trend-switch button.selected { color:#fff!important; background:var(--modern-accent)!important; }
+.app-shell.overview-only .overview-heatmap-section,.app-shell.overview-only .holdings-panel { border:1px solid var(--modern-line)!important; border-radius:22px!important; box-shadow:var(--modern-shadow)!important; background:#fff!important; }
+@media(max-width:980px){
+  .app-shell.overview-only .overview-hero .summary-card { border-right:0!important; border-bottom:1px solid var(--modern-line)!important; border-radius:22px 22px 0 0!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { border-left:0!important; border-top:0!important; border-radius:0 0 22px 22px!important; }
+}
+@media(max-width:780px){
+  .app-shell.overview-only .overview-hero { border-radius:18px!important; }
+  .app-shell.overview-only .overview-hero .summary-card { padding:21px 17px 18px!important; border-radius:18px 18px 0 0!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding:18px 14px 12px!important; border-radius:0 0 18px 18px!important; }
+  .app-shell.overview-only .overview-hero .summary-stats { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-head { display:grid!important; gap:12px!important; }
+  .app-shell.overview-only .trend-controls { width:100%!important; min-width:0!important; overflow:visible!important; }
+  .app-shell.overview-only .trend-switch { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .app-shell.overview-only .trend-switch button { min-height:42px!important; font-size:11px!important; }
+}
+@media(max-width:390px){
+  .app-shell.overview-only .overview-hero .summary-card { padding-left:14px!important; padding-right:14px!important; }
+  .app-shell.overview-only .overview-hero .performance-panel { padding-left:11px!important; padding-right:11px!important; }
+  .app-shell.overview-only .trend-switch button { font-size:10px!important; }
 }

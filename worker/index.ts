@@ -22,9 +22,10 @@ interface ExecutionContext {
 
 type StoredHolding = {
   symbol?: string;
-  market?: "美股" | "A股" | "基金";
+  market?: "美股" | "A股" | "基金" | "加密货币" | "现金";
   quantity?: number;
   avgCost?: number;
+  currency?: "$" | "¥";
   value?: number;
   cost?: number;
 };
@@ -48,12 +49,15 @@ async function saveDailyPortfolioSnapshots(env: Env) {
       const resolved = await Promise.all(holdings.map(async (holding) => {
         const quantity = Number(holding.quantity) || 0;
         const averageCost = Number(holding.avgCost) || 0;
-        const fx = holding.market === "美股" ? 7.18 : 1;
-        const cost = averageCost > 0 ? averageCost * quantity * fx : Number(holding.cost) || 0;
         try {
           const quote = holding.symbol ? await resolveAsset(holding.symbol) : null;
-          return { value: quote && quote.price > 0 ? quote.price * quantity * (quote.market === "美股" ? 7.18 : 1) : Number(holding.value) || 0, cost };
+          const fx = quote?.currency === "$" || quote?.market === "美股" || quote?.market === "加密货币" ? 7.18 : holding.currency === "$" || holding.market === "美股" || holding.market === "加密货币" ? 7.18 : 1;
+          const effectiveAverageCost = quote?.market === "现金" ? 1 : averageCost;
+          const cost = effectiveAverageCost > 0 ? effectiveAverageCost * quantity * fx : Number(holding.cost) || 0;
+          return { value: quote && quote.price > 0 ? quote.price * quantity * fx : Number(holding.value) || 0, cost };
         } catch {
+          const fx = holding.currency === "$" || holding.market === "美股" || holding.market === "加密货币" ? 7.18 : 1;
+          const cost = averageCost > 0 ? averageCost * quantity * fx : Number(holding.cost) || 0;
           return { value: Number(holding.value) || 0, cost };
         }
       }));
@@ -74,6 +78,12 @@ async function saveDailyPortfolioSnapshots(env: Env) {
       // 单个账户或单个行情源失败不影响其他账户的每日快照。
     }
   }
+}
+
+async function syncCalendarEvents(env: Env) {
+  // 事件同步采用保守策略：官方适配器可在此写入已核验事件；无来源时不生成猜测日期。
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS calendar_sync_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, ran_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
+  await env.DB.prepare(`INSERT INTO calendar_sync_runs (ran_at) VALUES (CURRENT_TIMESTAMP)`).run();
 }
 
 // Image security config. SVG sources with .svg extension auto-skip the
@@ -99,8 +109,9 @@ const worker = {
 
     return handler.fetch(request, env, ctx);
   },
-  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(saveDailyPortfolioSnapshots(env));
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    if (event.cron === "59 15 * * *") ctx.waitUntil(saveDailyPortfolioSnapshots(env));
+    else ctx.waitUntil(syncCalendarEvents(env));
   },
 };
 

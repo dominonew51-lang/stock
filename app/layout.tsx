@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
+import "./overview-compact.css";
 
 export const viewport: Viewport = {
   width: "device-width",

@@ -46,3 +46,10 @@ export const loginAttempts = sqliteTable("login_attempts", {
   blockedUntil: integer("blocked_until").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => [index("idx_login_attempts_updated_at").on(table.updatedAt)]);
+
+export const calendarEvents = sqliteTable("calendar_events", {
+  id: text("id").primaryKey(), userId: text("user_id").notNull(), title: text("title").notNull(), eventType: text("event_type").notNull(), industriesJson: text("industries_json").notNull(), symbolsJson: text("symbols_json").notNull(), startAt: text("start_at").notNull(), endAt: text("end_at"), timezone: text("timezone").notNull(), datePrecision: text("date_precision").notNull(), importance: text("importance").notNull(), status: text("status").notNull(), verification: text("verification").notNull(), sourceName: text("source_name").notNull(), sourceUrl: text("source_url").notNull(), externalId: text("external_id"), manualOverride: integer("manual_override").notNull().default(0), hidden: integer("hidden").notNull().default(0), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`), updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+export const eventCandidates = sqliteTable("event_candidates", {
+  id: text("id").primaryKey(), userId: text("user_id").notNull(), title: text("title").notNull(), eventType: text("event_type").notNull(), industriesJson: text("industries_json").notNull(), symbolsJson: text("symbols_json").notNull(), startAt: text("start_at"), timezone: text("timezone").notNull(), datePrecision: text("date_precision").notNull(), importance: text("importance").notNull(), candidateStatus: text("candidate_status").notNull().default("pending"), sourceName: text("source_name").notNull(), sourceUrl: text("source_url").notNull(), externalId: text("external_id"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`), updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

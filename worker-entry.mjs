@@ -99,11 +99,16 @@ async function captureDailySnapshots(event, env, ctx) {
   console.log(JSON.stringify({ event: "portfolio_daily_snapshot", snapshotDate, saved }));
 }
 
+async function syncCalendarEvents(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS calendar_sync_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, ran_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
+  await env.DB.prepare(`INSERT INTO calendar_sync_runs (ran_at) VALUES (CURRENT_TIMESTAMP)`).run();
+}
+
 export default {
   fetch(request, env, ctx) {
     return application.fetch(request, env, ctx);
   },
   scheduled(event, env, ctx) {
-    ctx.waitUntil(captureDailySnapshots(event, env, ctx));
+    ctx.waitUntil(event.cron === "59 15 * * *" ? captureDailySnapshots(event, env, ctx) : syncCalendarEvents(env));
   },
 };

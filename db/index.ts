@@ -65,5 +65,7 @@ export async function ensurePortfolioSchema() {
     )`),
     d1.prepare(`CREATE INDEX IF NOT EXISTS idx_login_attempts_updated_at
       ON login_attempts(updated_at)`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS calendar_events (id TEXT PRIMARY KEY NOT NULL,user_id TEXT NOT NULL,title TEXT NOT NULL,event_type TEXT NOT NULL,industries_json TEXT NOT NULL,symbols_json TEXT NOT NULL,start_at TEXT NOT NULL,end_at TEXT,timezone TEXT NOT NULL,date_precision TEXT NOT NULL,importance TEXT NOT NULL,status TEXT NOT NULL,verification TEXT NOT NULL,source_name TEXT NOT NULL,source_url TEXT NOT NULL,external_id TEXT,manual_override INTEGER NOT NULL DEFAULT 0,hidden INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`),
+    d1.prepare(`CREATE TABLE IF NOT EXISTS event_candidates (id TEXT PRIMARY KEY NOT NULL,user_id TEXT NOT NULL,title TEXT NOT NULL,event_type TEXT NOT NULL,industries_json TEXT NOT NULL,symbols_json TEXT NOT NULL,start_at TEXT,timezone TEXT NOT NULL,date_precision TEXT NOT NULL,importance TEXT NOT NULL,candidate_status TEXT NOT NULL DEFAULT 'pending',source_name TEXT NOT NULL,source_url TEXT NOT NULL,external_id TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`),
   ]);
 }

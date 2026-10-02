@@ -40,12 +40,13 @@ function calculateSnapshot(holdings, quotes) {
   let cost = 0;
   for (const item of holdings) {
     const symbol = String(item.symbol || "").trim().toUpperCase();
-    if (!symbol || item.market === "加密货币" || item.category === "加密货币") continue;
+    if (!symbol) continue;
     const quote = quotes[symbol];
     const market = quote?.market || item.market;
-    const fx = market === "美股" ? USD_CNY_RATE : 1;
+    const currency = quote?.currency || item.currency;
+    const fx = currency === "$" || market === "美股" || market === "加密货币" ? USD_CNY_RATE : 1;
     const quantity = Number(item.quantity) || 0;
-    const averageCost = Number(item.avgCost) || 0;
+    const averageCost = market === "现金" ? 1 : Number(item.avgCost) || 0;
     const liveValue = quote?.price > 0 ? quote.price * quantity * fx : Number(item.value) || 0;
     value += liveValue;
     cost += averageCost > 0 ? averageCost * quantity * fx : Number(item.cost) || 0;
@@ -99,16 +100,11 @@ async function captureDailySnapshots(event, env, ctx) {
   console.log(JSON.stringify({ event: "portfolio_daily_snapshot", snapshotDate, saved }));
 }
 
-async function syncCalendarEvents(env) {
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS calendar_sync_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, ran_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
-  await env.DB.prepare(`INSERT INTO calendar_sync_runs (ran_at) VALUES (CURRENT_TIMESTAMP)`).run();
-}
-
 export default {
   fetch(request, env, ctx) {
     return application.fetch(request, env, ctx);
   },
   scheduled(event, env, ctx) {
-    ctx.waitUntil(event.cron === "59 15 * * *" ? captureDailySnapshots(event, env, ctx) : syncCalendarEvents(env));
+    if (event.cron === "59 15 * * *") ctx.waitUntil(captureDailySnapshots(event, env, ctx));
   },
 };

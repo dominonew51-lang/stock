@@ -1,99 +1,41 @@
-# vinext-starter
+# Minimalism 个人投资面板
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+私人资产总览，用于查看总资产、收益走势、投资方向、持仓热力图和持仓明细。项目运行在 Cloudflare Workers，使用 D1 保存授权设备的持仓与每日资产快照。
 
-## Prerequisites
+## 开发环境
 
 - Node.js `>=22.13.0`
+- 依赖锁文件：`pnpm-lock.yaml`
+- Cloudflare 配置：`wrangler.jsonc`
+- 生产地址：<https://minimalism-portfolio.minimalism-domibook.workers.dev/>
 
-## Quick Start
+## 常用命令
 
 ```bash
-npm install
-npm run dev
-npm run build
+corepack pnpm install --frozen-lockfile
+pnpm dev
+pnpm test
+pnpm typecheck
+pnpm build:workers
+pnpm check
 ```
 
-This starter does not use `wrangler.jsonc`.
+- `pnpm test`：运行当前产品的源码与数据规则测试。
+- `pnpm test:browser`：需要可访问的测试地址时，运行实际页面检查。
+- `pnpm check`：依次运行测试、类型检查、Workers 生产构建和部署预检。
+- `pnpm deploy`：通过全部检查后发布到上述唯一地址，并保留线上环境变量。
 
-## Included Shape
+## 数据与定时任务
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `drizzle.config.ts` supports local migration generation when needed
+- `portfolio_states`：保存授权设备的当前持仓状态。
+- `portfolio_snapshots`：每日北京时间 23:59 保存总市值、总成本和收益率。
+- 日历、A股行情页和美股行情页已从当前产品下线，不应恢复其旧测试或空跑定时任务。
 
-## Workspace Auth Headers
+## 发布核对
 
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
+发布后需同时确认：
 
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+1. Wrangler 返回新的 deployment ID。
+2. 生产地址返回 HTTP 200。
+3. HTML 引用的 JS/CSS 资源为新构建版本。
+4. 手机与电脑端均能读取云端持仓，且每日资产快照定时任务仍在。

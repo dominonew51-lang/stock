@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { stripTypeScriptTypes } from "node:module";
 import test from "node:test";
+import vm from "node:vm";
 
 const [pageSource, layoutSource, overviewStyles, routeSource] = await Promise.all([
   readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -10,7 +12,7 @@ const [pageSource, layoutSource, overviewStyles, routeSource] = await Promise.al
 ]);
 
 test("keeps the mobile analysis title and four equal controls on one row", () => {
-  assert.match(pageSource, /<h2>资产分析<\/h2>/);
+  assert.match(pageSource, /<h2 id="analysis-dialog-title">资产分析<\/h2>/);
   assert.ok(
     layoutSource.indexOf('import "./overview-compact.css"') > layoutSource.indexOf('import "./globals.css"'),
     "the scoped overview layer must load after legacy global styles",
@@ -38,10 +40,10 @@ test("uses a single holding drawer instead of a full-page editor", () => {
 });
 
 test("keeps the quiet wealth terminal tokens and white compact hero", () => {
-  assert.match(overviewStyles, /--overview-bg:\s*#F6F9FC/i);
-  assert.match(overviewStyles, /--overview-navy:\s*#0B2742/i);
-  assert.match(overviewStyles, /--overview-profit:\s*#9F332E/i);
-  assert.match(overviewStyles, /--overview-loss:\s*#176549/i);
+  assert.match(overviewStyles, /--overview-bg:\s*#F9FAFB/i);
+  assert.match(overviewStyles, /--overview-navy:\s*#111827/i);
+  assert.match(overviewStyles, /--overview-profit:\s*#DC2626/i);
+  assert.match(overviewStyles, /--overview-loss:\s*#047857/i);
   assert.match(overviewStyles, /\.overview-hero\s*\{[\s\S]*background:\s*var\(--overview-surface\)/);
   assert.match(overviewStyles, /\.overview-hero \.summary-card[^\{]*\{[\s\S]*background:\s*var\(--overview-surface\)/);
   assert.match(pageSource, /className="topbar-title-line"/);

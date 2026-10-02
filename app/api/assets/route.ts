@@ -1,3 +1,5 @@
+import { normalizeLookupSymbol } from "../../asset-symbol";
+
 type Market = "美股" | "A股" | "基金" | "加密货币" | "现金";
 type AssetBucket = "美股指数" | "红利" | "美股" | "A股" | "加密货币" | "现金/类现金";
 
@@ -183,6 +185,17 @@ async function resolveUsAsset(symbol: string, includeDetails = false): Promise<Q
       // 部分证券只存在于其中一种资产类别，继续尝试下一类。
     }
   }
+  // These two listed US securities are occasionally omitted by the Nasdaq
+  // endpoint during a short upstream outage. Keep identity recognition
+  // available so a user can save the holding and let the next refresh fill
+  // in the live quote.
+  const knownUsAssets: Record<string, string> = {
+    COIN: "Coinbase",
+    CRCL: "Circle",
+  };
+  if (knownUsAssets[symbol]) {
+    return { symbol, name: knownUsAssets[symbol], market: "美股", price: 0, currency: "$", change: 0, asOf: new Date().toISOString(), provider: "Nasdaq", suggestedCategory: "美股" };
+  }
   throw new Error("未找到该美股或 ETF 代码");
 }
 
@@ -255,7 +268,7 @@ function resolveCashAsset(rawSymbol: string): QuoteResult {
 }
 
 export async function resolveAsset(rawSymbol: string, includeDetails = false): Promise<QuoteResult> {
-  const symbol = rawSymbol.trim().toUpperCase();
+  const symbol = normalizeLookupSymbol(rawSymbol);
   if (!symbol) throw new Error("代码不能为空");
   if (normalizeCashSymbol(symbol)) return resolveCashAsset(symbol);
   if (isBitcoinSymbol(symbol)) return resolveBitcoinAsset(symbol);

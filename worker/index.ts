@@ -80,12 +80,6 @@ async function saveDailyPortfolioSnapshots(env: Env) {
   }
 }
 
-async function syncCalendarEvents(env: Env) {
-  // 事件同步采用保守策略：官方适配器可在此写入已核验事件；无来源时不生成猜测日期。
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS calendar_sync_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, ran_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
-  await env.DB.prepare(`INSERT INTO calendar_sync_runs (ran_at) VALUES (CURRENT_TIMESTAMP)`).run();
-}
-
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -111,7 +105,6 @@ const worker = {
   },
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     if (event.cron === "59 15 * * *") ctx.waitUntil(saveDailyPortfolioSnapshots(env));
-    else ctx.waitUntil(syncCalendarEvents(env));
   },
 };
 

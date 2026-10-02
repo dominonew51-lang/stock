@@ -2,12 +2,12 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "minimalism-portfolio",
   "main": "worker-entry.mjs",
-  "compatibility_date": "2026-08-15",
+  "compatibility_date": "2026-05-22",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
   "triggers": {
-    "crons": ["59 15 * * *", "15 0 * * *", "15 12 * * *"]
+    "crons": ["59 15 * * *"]
   },
   "assets": {
     "binding": "ASSETS",
